@@ -1,0 +1,724 @@
+//@version=6
+// ICT PD Array Suite — all ICT Premium/Discount arrays as 18 individually
+// toggleable modules on a shared lifecycle / decluttering / rendering core.
+// See PRD.md for the full specification. Pine is the source implementation;
+// MQL5 and cTrader ports follow in separate epics (E8/E9).
+indicator("ICT PD Array Suite", "PD Arrays", overlay = true,
+     max_boxes_count = 500, max_lines_count = 500, max_labels_count = 500, max_bars_back = 3000)
+
+// ═════════════════════════════ MODULE IDS ═════════════════════════════
+// Kept as plain ints so the shared core can index config with switch().
+int M_OB   = 1   // Order Block
+int M_BRK  = 2   // Breaker Block
+int M_MB   = 3   // Mitigation Block
+int M_RB   = 4   // Rejection Block
+int M_FVG  = 5   // Fair Value Gap (+ CE)
+int M_IFVG = 6   // Inversion FVG
+int M_LV   = 7   // Liquidity Void
+int M_VI   = 8   // Volume Imbalance
+int M_OG   = 9   // Opening Gaps (NDOG / NWOG)
+int M_LIQ  = 10  // Buyside / Sellside Liquidity
+int M_EQ   = 11  // Equal Highs / Lows
+int M_DR   = 12  // Dealing Range (premium/discount/EQ/OTE/fib)
+int M_REF  = 13  // Reference Levels (PDH/PDL/PWH/PWL/PMH/PML)
+int M_BPR  = 14  // Balanced Price Range
+int M_SMT  = 15  // SMT Divergence
+int M_DISP = 16  // Displacement
+int M_KL   = 17  // Key Levels & Opens
+int M_MS   = 18  // Market Structure (BOS / MSS / CHoCH)
+
+// Mitigation rule codes (per-array, set at registration)
+int MIT_FAREDGE = 0   // zonal: confirmed close beyond the far edge  → mitigated
+int MIT_CE      = 1   // zonal: price reaches the 50% / CE line       → mitigated
+int MIT_SWEEP   = 2   // level: price trades through the level        → swept
+
+// Mitigated-handling codes
+int MH_FADE   = 0
+int MH_REMOVE = 1
+int MH_KEEP   = 2
+
+// ═════════════════════════════ GLOBAL INPUTS ═════════════════════════════
+gEnableAll  = input.bool(true, "Enable All Modules (master switch)", group = "Global / Theme",
+     tooltip = "Off = every module is disabled regardless of its own toggle (emergency brake).")
+gTheme      = input.string("Neutral", "Color Theme", options = ["Neutral", "Vivid", "Mono"], group = "Global / Theme",
+     tooltip = "Preset that tints modules that are left on their default colors. Explicit per-module color overrides always win.")
+gCompact    = input.bool(false, "Compact Mode", group = "Global / Theme",
+     tooltip = "Thinner borders, no CE / midlines, labels only for above-average-strength arrays. Calms the chart when many modules are on.")
+gTranspBase = input.int(80, "Base Transparency", minval = 0, maxval = 95, group = "Global / Theme",
+     tooltip = "Transparency of a fresh array. Stronger / fresher arrays render a little more opaque than this.")
+gLookback   = input.int(1500, "Lookback Bars", minval = 200, maxval = 5000, group = "Global / Theme",
+     tooltip = "Detection and drawing only run within this many bars of the current bar (performance).")
+gMergePct   = input.float(80.0, "Merge Overlap %", minval = 0, maxval = 100, step = 5, group = "Global / Theme",
+     tooltip = "A new array of the same module + direction that overlaps an existing one by more than this % merges into it instead of duplicating.")
+gAtrLen     = input.int(14, "ATR Length", minval = 2, group = "Global / Theme")
+gPivL       = input.int(5, "Pivot Left Bars", minval = 1, group = "Global / Theme")
+gPivR       = input.int(5, "Pivot Right Bars", minval = 1, group = "Global / Theme",
+     tooltip = "Confirmation delay: pivot-based modules only confirm an array this many bars after the swing (non-repaint by design).")
+
+// Info panel
+ipShow = input.bool(true, "Show Info Panel", group = "Info Panel")
+ipPos  = input.string("Top Right", "Panel Position", options = ["Top Right", "Top Left", "Bottom Right", "Bottom Left"], group = "Info Panel")
+
+// Alerts
+alJson     = input.bool(false, "Enable JSON Webhook Alerts", group = "Alerts",
+     tooltip = "Additionally emit an alert() call with a JSON payload (see PRD §4.20). Static alertcondition() alerts are always available.")
+alResetAtr = input.float(1.0, "Alert Reset (x ATR)", minval = 0.1, step = 0.1, group = "Alerts",
+     tooltip = "A per-array 'tapped' alert only re-arms once price is this many ATR away from the array again.")
+
+// ─── Per-module inputs ────────────────────────────────────────────────
+// Order Block (M_OB)
+obOn      = input.bool(true,  "① Order Block — enable", group = "① Order Block")
+obBull    = input.color(color.new(#26a69a, 0), "Bull color", group = "① Order Block", inline = "obc")
+obBear    = input.color(color.new(#ef5350, 0), "Bear color", group = "① Order Block", inline = "obc")
+obMax     = input.int(6, "Max shown", minval = 1, maxval = 30, group = "① Order Block")
+obMH      = input.string("Fade", "Mitigated handling", options = ["Fade", "Remove", "Keep"], group = "① Order Block")
+obBodyOnly= input.bool(false, "Use body only (ignore wick)", group = "① Order Block")
+obReqDisp = input.bool(true, "Require displacement", group = "① Order Block",
+     tooltip = "Only register an OB when module ⑯ Displacement flags a move out of it.")
+obAge     = input.int(500, "Max age (bars)", minval = 20, group = "① Order Block")
+
+// Breaker (M_BRK)
+brkOn   = input.bool(true, "② Breaker Block — enable", group = "② Breaker Block")
+brkBull = input.color(color.new(#00897b, 0), "Bull color", group = "② Breaker Block", inline = "brc")
+brkBear = input.color(color.new(#e53935, 0), "Bear color", group = "② Breaker Block", inline = "brc")
+brkMax  = input.int(4, "Max shown", minval = 1, maxval = 20, group = "② Breaker Block")
+brkMH   = input.string("Fade", "Mitigated handling", options = ["Fade", "Remove", "Keep"], group = "② Breaker Block")
+brkAge  = input.int(500, "Max age (bars)", minval = 20, group = "② Breaker Block")
+
+// Mitigation Block (M_MB)
+mbOn   = input.bool(true, "③ Mitigation Block — enable", group = "③ Mitigation Block")
+mbBull = input.color(color.new(#66bb6a, 0), "Bull color", group = "③ Mitigation Block", inline = "mbc")
+mbBear = input.color(color.new(#ffa726, 0), "Bear color", group = "③ Mitigation Block", inline = "mbc")
+mbMax  = input.int(4, "Max shown", minval = 1, maxval = 20, group = "③ Mitigation Block")
+mbMH   = input.string("Fade", "Mitigated handling", options = ["Fade", "Remove", "Keep"], group = "③ Mitigation Block")
+mbAge  = input.int(400, "Max age (bars)", minval = 20, group = "③ Mitigation Block")
+
+// Rejection Block (M_RB)
+rbOn    = input.bool(true, "④ Rejection Block — enable", group = "④ Rejection Block")
+rbBull  = input.color(color.new(#4db6ac, 0), "Bull color", group = "④ Rejection Block", inline = "rbc")
+rbBear  = input.color(color.new(#ff7043, 0), "Bear color", group = "④ Rejection Block", inline = "rbc")
+rbMax   = input.int(5, "Max shown", minval = 1, maxval = 20, group = "④ Rejection Block")
+rbMH    = input.string("Fade", "Mitigated handling", options = ["Fade", "Remove", "Keep"], group = "④ Rejection Block")
+rbWickRatio = input.float(0.55, "Min wick / range ratio", minval = 0.3, maxval = 0.95, step = 0.05, group = "④ Rejection Block")
+rbMinWickAtr= input.float(0.6, "Min wick (x ATR)", minval = 0.1, step = 0.1, group = "④ Rejection Block")
+rbAge   = input.int(400, "Max age (bars)", minval = 20, group = "④ Rejection Block")
+
+// Fair Value Gap (M_FVG)
+fvgOn    = input.bool(true, "⑤ Fair Value Gap — enable", group = "⑤ Fair Value Gap")
+fvgBull  = input.color(color.new(#42a5f5, 0), "Bull color (BISI)", group = "⑤ Fair Value Gap", inline = "fvc")
+fvgBear  = input.color(color.new(#ab47bc, 0), "Bear color (SIBI)", group = "⑤ Fair Value Gap", inline = "fvc")
+fvgMax   = input.int(8, "Max shown", minval = 1, maxval = 40, group = "⑤ Fair Value Gap")
+fvgMH    = input.string("Remove", "Mitigated handling", options = ["Fade", "Remove", "Keep"], group = "⑤ Fair Value Gap")
+fvgMinAtr= input.float(0.10, "Min gap size (x ATR)", minval = 0.0, step = 0.05, group = "⑤ Fair Value Gap")
+fvgReqDisp = input.bool(true, "Require displacement", group = "⑤ Fair Value Gap")
+fvgShowCe= input.bool(true, "Show CE (50%) line", group = "⑤ Fair Value Gap")
+fvgFill  = input.string("CE (50%)", "Fill rule", options = ["CE (50%)", "Full fill"], group = "⑤ Fair Value Gap")
+fvgAge   = input.int(500, "Max age (bars)", minval = 20, group = "⑤ Fair Value Gap")
+
+// Inversion FVG (M_IFVG)
+ifvgOn   = input.bool(true, "⑥ Inversion FVG — enable", group = "⑥ Inversion FVG")
+ifvgBull = input.color(color.new(#1e88e5, 0), "Bull color", group = "⑥ Inversion FVG", inline = "ifc")
+ifvgBear = input.color(color.new(#8e24aa, 0), "Bear color", group = "⑥ Inversion FVG", inline = "ifc")
+ifvgMax  = input.int(6, "Max shown", minval = 1, maxval = 30, group = "⑥ Inversion FVG")
+ifvgMH   = input.string("Fade", "Mitigated handling", options = ["Fade", "Remove", "Keep"], group = "⑥ Inversion FVG")
+ifvgAge  = input.int(500, "Max age (bars)", minval = 20, group = "⑥ Inversion FVG")
+
+// Liquidity Void (M_LV)
+lvOn     = input.bool(true, "⑦ Liquidity Void — enable", group = "⑦ Liquidity Void")
+lvBull   = input.color(color.new(#78909c, 0), "Bull color", group = "⑦ Liquidity Void", inline = "lvc")
+lvBear   = input.color(color.new(#8d6e63, 0), "Bear color", group = "⑦ Liquidity Void", inline = "lvc")
+lvMax    = input.int(4, "Max shown", minval = 1, maxval = 20, group = "⑦ Liquidity Void")
+lvMH     = input.string("Fade", "Mitigated handling", options = ["Fade", "Remove", "Keep"], group = "⑦ Liquidity Void")
+lvMinBars= input.int(3, "Min bars", minval = 2, maxval = 10, group = "⑦ Liquidity Void")
+lvMinAtr = input.float(2.5, "Min range (x ATR)", minval = 0.5, step = 0.5, group = "⑦ Liquidity Void")
+lvFillPct= input.float(50.0, "Fill % for mitigation", minval = 10, maxval = 100, step = 5, group = "⑦ Liquidity Void")
+lvAge    = input.int(500, "Max age (bars)", minval = 20, group = "⑦ Liquidity Void")
+
+// Volume Imbalance (M_VI)
+viOn   = input.bool(true, "⑧ Volume Imbalance — enable", group = "⑧ Volume Imbalance")
+viBull = input.color(color.new(#26c6da, 0), "Bull color", group = "⑧ Volume Imbalance", inline = "vic")
+viBear = input.color(color.new(#ec407a, 0), "Bear color", group = "⑧ Volume Imbalance", inline = "vic")
+viMax  = input.int(6, "Max shown", minval = 1, maxval = 30, group = "⑧ Volume Imbalance")
+viMH   = input.string("Remove", "Mitigated handling", options = ["Fade", "Remove", "Keep"], group = "⑧ Volume Imbalance")
+viAge  = input.int(300, "Max age (bars)", minval = 20, group = "⑧ Volume Imbalance")
+
+// Opening Gaps (M_OG)
+ogOn     = input.bool(true, "⑨ Opening Gaps — enable", group = "⑨ Opening Gaps (NDOG/NWOG)")
+ogNdog   = input.bool(true, "NDOG (new day)", group = "⑨ Opening Gaps (NDOG/NWOG)", inline = "ogt")
+ogNwog   = input.bool(true, "NWOG (new week)", group = "⑨ Opening Gaps (NDOG/NWOG)", inline = "ogt")
+ogBull   = input.color(color.new(#5c6bc0, 0), "Up color", group = "⑨ Opening Gaps (NDOG/NWOG)", inline = "ogc")
+ogBear   = input.color(color.new(#d4e157, 0), "Down color", group = "⑨ Opening Gaps (NDOG/NWOG)", inline = "ogc")
+ogMaxN   = input.int(3, "Max NDOG shown", minval = 1, maxval = 10, group = "⑨ Opening Gaps (NDOG/NWOG)")
+ogMaxW   = input.int(3, "Max NWOG shown", minval = 1, maxval = 10, group = "⑨ Opening Gaps (NDOG/NWOG)")
+ogMH     = input.string("Fade", "Mitigated handling", options = ["Fade", "Remove", "Keep"], group = "⑨ Opening Gaps (NDOG/NWOG)")
+ogAge    = input.int(600, "Max age (bars)", minval = 20, group = "⑨ Opening Gaps (NDOG/NWOG)")
+
+// Liquidity — BSL / SSL (M_LIQ)
+liqOn    = input.bool(true, "⑩ Buyside/Sellside Liquidity — enable", group = "⑩ Liquidity (BSL/SSL)")
+liqBSL   = input.bool(true, "Buyside (old highs)", group = "⑩ Liquidity (BSL/SSL)", inline = "lqt")
+liqSSL   = input.bool(true, "Sellside (old lows)", group = "⑩ Liquidity (BSL/SSL)", inline = "lqt")
+liqTrend = input.bool(false, "Trendline liquidity (simplified)", group = "⑩ Liquidity (BSL/SSL)")
+liqBuyCol= input.color(color.new(#26a69a, 0), "BSL color", group = "⑩ Liquidity (BSL/SSL)", inline = "lqc")
+liqSellCol=input.color(color.new(#ef5350, 0), "SSL color", group = "⑩ Liquidity (BSL/SSL)", inline = "lqc")
+liqMax   = input.int(6, "Max shown per side", minval = 1, maxval = 20, group = "⑩ Liquidity (BSL/SSL)")
+liqMH    = input.string("Remove", "Swept handling", options = ["Fade", "Remove", "Keep"], group = "⑩ Liquidity (BSL/SSL)")
+liqAge   = input.int(800, "Max age (bars)", minval = 20, group = "⑩ Liquidity (BSL/SSL)")
+
+// Equal Highs / Lows (M_EQ)
+eqOn     = input.bool(true, "⑪ Equal Highs/Lows — enable", group = "⑪ Equal Highs/Lows")
+eqHighCol= input.color(color.new(#ef5350, 0), "EQH color", group = "⑪ Equal Highs/Lows", inline = "eqc")
+eqLowCol = input.color(color.new(#26a69a, 0), "EQL color", group = "⑪ Equal Highs/Lows", inline = "eqc")
+eqTolAtr = input.float(0.10, "Equal tolerance (x ATR)", minval = 0.02, step = 0.02, group = "⑪ Equal Highs/Lows")
+eqMax    = input.int(5, "Max shown", minval = 1, maxval = 20, group = "⑪ Equal Highs/Lows")
+eqMH     = input.string("Remove", "Swept handling", options = ["Fade", "Remove", "Keep"], group = "⑪ Equal Highs/Lows")
+eqAge    = input.int(600, "Max age (bars)", minval = 20, group = "⑪ Equal Highs/Lows")
+
+// Dealing Range (M_DR)
+drOn     = input.bool(true, "⑫ Dealing Range — enable", group = "⑫ Dealing Range")
+drSrc    = input.string("Auto swing", "Range source", options = ["Auto swing", "Previous period", "Session"], group = "⑫ Dealing Range")
+drPeriod = input.string("Day", "Previous period", options = ["Day", "Week", "Month"], group = "⑫ Dealing Range")
+drSession= input.string("London", "Session", options = ["Asia", "London", "New York"], group = "⑫ Dealing Range")
+drShowBox= input.bool(true, "Show range box (premium/discount tint)", group = "⑫ Dealing Range")
+drShowOte= input.bool(true, "Show OTE band", group = "⑫ Dealing Range")
+drOteLo  = input.float(0.62, "OTE from", minval = 0.5, maxval = 0.9, step = 0.005, group = "⑫ Dealing Range", inline = "ote")
+drOteHi  = input.float(0.79, "OTE to", minval = 0.5, maxval = 0.95, step = 0.005, group = "⑫ Dealing Range", inline = "ote")
+drFibs   = input.string("0.705, 1.0, -0.5", "Extra fib levels (comma list)", group = "⑫ Dealing Range")
+drPremCol= input.color(color.new(#ef5350, 88), "Premium tint", group = "⑫ Dealing Range", inline = "drc")
+drDiscCol= input.color(color.new(#26a69a, 88), "Discount tint", group = "⑫ Dealing Range", inline = "drc")
+drEqCol  = input.color(color.new(#b0bec5, 0), "Equilibrium / fib color", group = "⑫ Dealing Range")
+
+// Reference Levels (M_REF)
+refOn    = input.bool(true, "⑬ Reference Levels — enable", group = "⑬ Reference Levels")
+refDay   = input.bool(true, "PDH / PDL", group = "⑬ Reference Levels", inline = "rft")
+refWeek  = input.bool(true, "PWH / PWL", group = "⑬ Reference Levels", inline = "rft")
+refMonth = input.bool(false, "PMH / PML", group = "⑬ Reference Levels", inline = "rft")
+refCol   = input.color(color.new(#90a4ae, 0), "Level color", group = "⑬ Reference Levels")
+refMH    = input.string("Keep", "Swept handling", options = ["Fade", "Remove", "Keep"], group = "⑬ Reference Levels")
+
+// Balanced Price Range (M_BPR)
+bprOn    = input.bool(true, "⑭ Balanced Price Range — enable", group = "⑭ Balanced Price Range")
+bprCol   = input.color(color.new(#ffca28, 0), "BPR color", group = "⑭ Balanced Price Range")
+bprMaxApart = input.int(10, "Max bars apart (bull vs bear FVG)", minval = 1, maxval = 50, group = "⑭ Balanced Price Range")
+bprMax   = input.int(4, "Max shown", minval = 1, maxval = 20, group = "⑭ Balanced Price Range")
+bprMH    = input.string("Remove", "Mitigated handling", options = ["Fade", "Remove", "Keep"], group = "⑭ Balanced Price Range")
+bprAge   = input.int(500, "Max age (bars)", minval = 20, group = "⑭ Balanced Price Range")
+
+// SMT Divergence (M_SMT)
+smtOn    = input.bool(false, "⑮ SMT Divergence — enable", group = "⑮ SMT Divergence")
+smtSym1  = input.symbol("FX:AUDUSD", "Correlated symbol 1", group = "⑮ SMT Divergence")
+smtSym2  = input.symbol("", "Correlated symbol 2 (optional)", group = "⑮ SMT Divergence")
+smtLine  = input.bool(true, "Draw connector line", group = "⑮ SMT Divergence")
+smtBullCol= input.color(color.new(#26a69a, 0), "Bull SMT color", group = "⑮ SMT Divergence", inline = "smc")
+smtBearCol= input.color(color.new(#ef5350, 0), "Bear SMT color", group = "⑮ SMT Divergence", inline = "smc")
+smtMax   = input.int(4, "Max shown", minval = 1, maxval = 20, group = "⑮ SMT Divergence")
+
+// Displacement (M_DISP)
+dispOn   = input.bool(false, "⑯ Displacement — draw legs", group = "⑯ Displacement",
+     tooltip = "Detection always runs (used as a quality gate by ①②⑤⑱). This toggle only controls whether the legs are drawn.")
+dispAtr  = input.float(1.5, "Displacement (x ATR)", minval = 0.5, step = 0.1, group = "⑯ Displacement")
+dispMaxBars = input.int(3, "Max bars per leg", minval = 1, maxval = 8, group = "⑯ Displacement")
+dispBodyRatio = input.float(0.5, "Min body / range ratio", minval = 0.2, maxval = 0.95, step = 0.05, group = "⑯ Displacement")
+dispCol  = input.color(color.new(#ffee58, 40), "Leg color", group = "⑯ Displacement")
+dispMax  = input.int(4, "Max shown", minval = 1, maxval = 20, group = "⑯ Displacement")
+
+// Key Levels & Opens (M_KL)
+klOn     = input.bool(true, "⑰ Key Levels & Opens — enable", group = "⑰ Key Levels & Opens")
+klMidnight= input.bool(true, "Midnight / True Day Open (00:00)", group = "⑰ Key Levels & Opens")
+klEight  = input.bool(true, "08:30 open", group = "⑰ Key Levels & Opens")
+klAsia   = input.bool(false, "Asia session H/L", group = "⑰ Key Levels & Opens", inline = "kls")
+klLondon = input.bool(true, "London session H/L", group = "⑰ Key Levels & Opens", inline = "kls")
+klNY     = input.bool(true, "New York session H/L", group = "⑰ Key Levels & Opens", inline = "kls")
+klTz     = input.string("America/New_York", "Timezone", group = "⑰ Key Levels & Opens")
+klAsiaSes = input.session("2000-0000", "Asia window", group = "⑰ Key Levels & Opens")
+klLdnSes  = input.session("0200-0500", "London window", group = "⑰ Key Levels & Opens")
+klNYSes   = input.session("0930-1600", "New York window", group = "⑰ Key Levels & Opens")
+klHistory= input.int(1, "Session history (past sessions)", minval = 0, maxval = 5, group = "⑰ Key Levels & Opens")
+klOpenCol= input.color(color.new(#ffffff, 0), "Open lines color", group = "⑰ Key Levels & Opens", inline = "klc")
+klSesCol = input.color(color.new(#7e57c2, 0), "Session H/L color", group = "⑰ Key Levels & Opens", inline = "klc")
+
+// Market Structure (M_MS)
+msOn     = input.bool(true, "⑱ Market Structure (BOS/MSS) — enable", group = "⑱ Market Structure")
+msBasis  = input.string("Close", "Structure basis", options = ["Close", "Wick"], group = "⑱ Market Structure")
+msReqDisp= input.bool(true, "MSS requires displacement", group = "⑱ Market Structure")
+msBosCol = input.color(color.new(#26a69a, 0), "BOS color", group = "⑱ Market Structure", inline = "msc")
+msMssCol = input.color(color.new(#ef5350, 0), "MSS color", group = "⑱ Market Structure", inline = "msc")
+msMax    = input.int(6, "Max shown", minval = 1, maxval = 20, group = "⑱ Market Structure")
+
+// ═════════════════════════════ TYPES ═════════════════════════════
+type PDArray
+    int    mod          = 0
+    string tag          = ""
+    int    dir          = 0          // +1 bull / -1 bear / 0 neutral
+    float  top          = na
+    float  bot          = na
+    float  ce           = na
+    int    bornBar      = 0
+    int    bornTime     = 0
+    string status       = "formed"   // formed | tapped | mitigated
+    int    lastBar      = 0
+    int    mitBar       = 0
+    float  strength     = 1.0
+    int    count        = 1          // touches / member points (for label)
+    bool   isLevel      = false      // render as line(s) instead of a box
+    bool   twoLine      = false      // isLevel + draw both top & bot lines
+    bool   extend       = false
+    int    mitRule      = 0          // MIT_*
+    int    mitHandling  = 0          // MH_*
+    int    maxAge       = 500
+    bool   showCe       = false
+    bool   shown        = true       // set by f_declutter(); read by f_render()
+    color  col          = na         // explicit color override; else derived
+    bool   alertedTap   = false
+    // drawing handles
+    box    bx           = na
+    line   ln1          = na
+    line   ln2          = na
+    line   lnCe         = na
+    label  lb           = na
+
+// ═════════════════════════════ STATE ═════════════════════════════
+var array<PDArray> reg = array.new<PDArray>()
+int HARD_CAP = 500
+
+// last-event strings — kept in a 1-element-per-slot array so detector FUNCTIONS
+// can write them (Pine functions may mutate arrays by reference but not rebind
+// global scalars). 0 = last sweep, 1 = last structure, 2 = last SMT.
+var array<string> evt = array.new<string>(3, "none")
+
+// dealing-range snapshot filled by module ⑫, read by the info panel.
+// 0 = range top, 1 = range bottom, 2 = leg direction (+1 up / -1 down).
+var array<float> drBox = array.new<float>(3, na)
+
+// ═════════════════════════════ CALCULATIONS ═════════════════════════════
+atr   = ta.atr(gAtrLen)
+inLB  = (last_bar_index - bar_index) <= gLookback   // within lookback window
+ph    = ta.pivothigh(gPivL, gPivR)
+pl    = ta.pivotlow(gPivL, gPivR)
+
+// Displacement (module ⑯) — detection always runs; it is a shared quality gate
+// consumed by modules ①②⑤⑱. The toggle only controls whether legs are drawn.
+bullDisp = false
+bearDisp = false
+if barstate.isconfirmed
+    _up = true
+    _dn = true
+    for k = 0 to dispMaxBars - 1
+        _r  = high[k] - low[k]
+        _br = _r > 0 ? math.abs(close[k] - open[k]) / _r : 0.0
+        if _br < dispBodyRatio
+            _up := false
+            _dn := false
+        if close[k] <= open[k]
+            _up := false
+        if close[k] >= open[k]
+            _dn := false
+    _legUp = close - low[dispMaxBars - 1]
+    _legDn = high[dispMaxBars - 1] - close
+    bullDisp := _up and _legUp >= dispAtr * atr
+    bearDisp := _dn and _legDn >= dispAtr * atr
+
+// ═════════════════════════════ SHARED CORE ═════════════════════════════
+f_mhCode(string s) => s == "Remove" ? MH_REMOVE : s == "Keep" ? MH_KEEP : MH_FADE
+
+// Is a module allowed to run / draw?
+f_modOn(int m) =>
+    bool on = switch m
+        M_OB   => obOn
+        M_BRK  => brkOn
+        M_MB   => mbOn
+        M_RB   => rbOn
+        M_FVG  => fvgOn
+        M_IFVG => ifvgOn
+        M_LV   => lvOn
+        M_VI   => viOn
+        M_OG   => ogOn
+        M_LIQ  => liqOn
+        M_EQ   => eqOn
+        M_DR   => drOn
+        M_REF  => refOn
+        M_BPR  => bprOn
+        M_SMT  => smtOn
+        M_DISP => dispOn
+        M_KL   => klOn
+        M_MS   => msOn
+        => false
+    gEnableAll and on
+
+f_modMax(int m) =>
+    switch m
+        M_OB   => obMax
+        M_BRK  => brkMax
+        M_MB   => mbMax
+        M_RB   => rbMax
+        M_FVG  => fvgMax
+        M_IFVG => ifvgMax
+        M_LV   => lvMax
+        M_VI   => viMax
+        M_OG   => math.max(ogMaxN, ogMaxW)
+        M_LIQ  => liqMax * 2
+        M_EQ   => eqMax
+        M_DR   => 60
+        M_REF  => 12
+        M_BPR  => bprMax
+        M_SMT  => smtMax
+        M_DISP => dispMax
+        M_KL   => 40
+        M_MS   => msMax
+        => 6
+
+// Color for an array: explicit override first, then per-module bull/bear.
+f_color(PDArray a) =>
+    bull = a.dir >= 0
+    color c = switch a.mod
+        M_OB   => bull ? obBull    : obBear
+        M_BRK  => bull ? brkBull   : brkBear
+        M_MB   => bull ? mbBull    : mbBear
+        M_RB   => bull ? rbBull    : rbBear
+        M_FVG  => bull ? fvgBull   : fvgBear
+        M_IFVG => bull ? ifvgBull  : ifvgBear
+        M_LV   => bull ? lvBull    : lvBear
+        M_VI   => bull ? viBull    : viBear
+        M_OG   => bull ? ogBull    : ogBear
+        M_LIQ  => bull ? liqBuyCol : liqSellCol
+        M_EQ   => bull ? eqLowCol  : eqHighCol
+        M_DR   => drEqCol
+        M_REF  => refCol
+        M_BPR  => bprCol
+        M_SMT  => bull ? smtBullCol : smtBearCol
+        M_DISP => dispCol
+        M_KL   => klOpenCol
+        M_MS   => bull ? msBosCol  : msMssCol
+        => color.gray
+    na(a.col) ? c : a.col
+
+f_overlap(float aTop, float aBot, float bTop, float bBot) =>
+    lo    = math.max(aBot, bBot)
+    hi    = math.min(aTop, bTop)
+    inter = hi - lo
+    span  = math.min(aTop - aBot, bTop - bBot)
+    span > 0 and inter > 0 ? inter / span * 100.0 : 0.0
+
+f_delete(PDArray a) =>
+    if not na(a.bx)
+        box.delete(a.bx)
+        a.bx := na
+    if not na(a.ln1)
+        line.delete(a.ln1)
+        a.ln1 := na
+    if not na(a.ln2)
+        line.delete(a.ln2)
+        a.ln2 := na
+    if not na(a.lnCe)
+        line.delete(a.lnCe)
+        a.lnCe := na
+    if not na(a.lb)
+        label.delete(a.lb)
+        a.lb := na
+
+// JSON payload for a dynamic alert() (emitted from global scope — see MAIN).
+f_payload(string event, PDArray a) =>
+    '{"ticker":"'      + syminfo.tickerid                       +
+     '","timeframe":"' + timeframe.period                       +
+     '","event_type":"'+ event                                  +
+     '","module":'     + str.tostring(a.mod)                     +
+     ',"array_type":"' + a.tag                                   +
+     '","direction":'  + str.tostring(a.dir)                     +
+     ',"top":'         + str.tostring(a.top)                     +
+     ',"bot":'         + str.tostring(a.bot)                     +
+     ',"ce":'          + str.tostring(a.ce)                      +
+     ',"price":'       + str.tostring(close)                     +
+     ',"time":'        + str.tostring(time)                      + '}'
+
+// Register a new array — or merge into an overlapping same-module/same-dir one.
+f_register(int m, string tag, int dir, float top, float bot, bool isLevel, bool twoLine,
+     bool extend, int mitRule, int mitHandling, int maxAge, bool showCe, color colOv) =>
+    float t = math.max(top, bot)
+    float b = math.min(top, bot)
+    bool merged = false
+    if not isLevel and reg.size() > 0
+        for i = 0 to reg.size() - 1
+            e = reg.get(i)
+            if e.mod == m and e.dir == dir and e.status != "mitigated" and f_overlap(t, b, e.top, e.bot) >= gMergePct
+                e.top     := math.max(e.top, t)
+                e.bot     := math.min(e.bot, b)
+                e.ce      := (e.top + e.bot) / 2.0
+                e.lastBar := bar_index
+                e.count   += 1
+                e.strength += 0.5
+                merged := true
+                break
+    if not merged
+        PDArray a = PDArray.new(mod = m, tag = tag, dir = dir, top = t, bot = b, ce = (t + b) / 2.0,
+             bornBar = bar_index, bornTime = time, status = "formed", lastBar = bar_index,
+             strength = 1.0, count = 1, isLevel = isLevel, twoLine = twoLine, extend = extend,
+             mitRule = mitRule, mitHandling = mitHandling, maxAge = maxAge, showCe = showCe, col = colOv)
+        reg.push(a)
+        if reg.size() > HARD_CAP
+            wi = 0
+            ws = 1e18
+            for i = 0 to reg.size() - 1
+                e  = reg.get(i)
+                sc = e.strength * 1000.0 - (bar_index - e.bornBar)
+                if sc < ws
+                    ws := sc
+                    wi := i
+            f_delete(reg.get(wi))
+            reg.remove(wi)
+
+// Lifecycle: status transitions + ageing + cleanup. Runs once per confirmed bar.
+f_lifecycle() =>
+    if reg.size() > 0
+        for i = reg.size() - 1 to 0
+            a = reg.get(i)
+            bool drop = false
+            bool touched = high >= a.bot and low <= a.top
+            if a.status == "formed" and touched
+                a.status := "tapped"
+            if touched
+                a.lastBar := bar_index
+            if a.status != "mitigated"
+                bool mit = false
+                if a.mitRule == MIT_SWEEP
+                    mit := a.dir >= 0 ? high > a.top : low < a.bot
+                    if mit
+                        evt.set(0, a.tag + " @ " + str.tostring(a.dir >= 0 ? a.top : a.bot, format.mintick) + " (" + str.tostring(bar_index) + ")")
+                else if a.mitRule == MIT_CE
+                    mit := low <= a.ce and high >= a.ce
+                else
+                    mit := a.dir >= 0 ? close < a.bot : close > a.top
+                if mit
+                    a.status := "mitigated"
+                    a.mitBar := bar_index
+            if a.status == "mitigated"
+                if a.mitHandling == MH_REMOVE
+                    drop := true
+                else if a.mitHandling == MH_FADE and (bar_index - a.mitBar) > gPivR + 20
+                    drop := true
+            if not drop and a.status != "mitigated" and (bar_index - a.lastBar) > a.maxAge
+                drop := true
+            dist = math.min(math.abs(close - a.top), math.abs(close - a.bot))
+            if a.alertedTap and dist > alResetAtr * atr
+                a.alertedTap := false
+            if drop
+                f_delete(a)
+                reg.remove(i)
+
+// Decluttering: per module keep only the strongest/most-recent `Max Shown`.
+f_declutter() =>
+    if reg.size() > 0
+        for m = 1 to 18
+            keep = f_modMax(m)
+            cnt  = 0
+            for i = 0 to reg.size() - 1
+                if reg.get(i).mod == m
+                    cnt += 1
+                    reg.get(i).shown := true
+            if cnt > keep
+                for i = 0 to reg.size() - 1
+                    if reg.get(i).mod == m
+                        reg.get(i).shown := false
+                for pass = 0 to keep - 1
+                    bi = -1
+                    bv = -1e30
+                    for i = 0 to reg.size() - 1
+                        e = reg.get(i)
+                        if e.mod == m and not e.shown
+                            sc = e.strength * 1e6 - (bar_index - e.lastBar) * 1.0
+                            if sc > bv
+                                bv := sc
+                                bi := i
+                    if bi >= 0
+                        reg.get(bi).shown := true
+
+// Rendering: (re)draw each array's handles honoring compact mode + status.
+f_render() =>
+    if reg.size() > 0
+        for i = 0 to reg.size() - 1
+            a = reg.get(i)
+            bool draw = a.shown and f_modOn(a.mod) and inLB and (bar_index - a.bornBar) <= gLookback
+            if not draw
+                f_delete(a)
+                continue
+            c      = f_color(a)
+            agef   = math.min(1.0, (bar_index - a.lastBar) / 300.0)
+            tr     = int(math.min(95.0, gTranspBase + agef * 12.0 + (a.status == "mitigated" ? 10.0 : 0.0)))
+            trB    = math.max(0, tr - 40)
+            trCe   = math.max(0, tr - 30)
+            rightX = a.extend ? bar_index + 10 : bar_index + 2
+            dstyle = a.status == "mitigated" ? line.style_dotted : line.style_solid
+            if a.isLevel
+                if na(a.ln1)
+                    a.ln1 := line.new(a.bornBar, a.top, rightX, a.top, xloc = xloc.bar_index,
+                         color = color.new(c, trB), style = dstyle, width = 1)
+                else
+                    line.set_xy1(a.ln1, a.bornBar, a.top)
+                    line.set_xy2(a.ln1, rightX, a.top)
+                    line.set_color(a.ln1, color.new(c, trB))
+                    line.set_style(a.ln1, dstyle)
+                if a.twoLine
+                    if na(a.ln2)
+                        a.ln2 := line.new(a.bornBar, a.bot, rightX, a.bot, xloc = xloc.bar_index,
+                             color = color.new(c, trB), style = dstyle, width = 1)
+                    else
+                        line.set_xy1(a.ln2, a.bornBar, a.bot)
+                        line.set_xy2(a.ln2, rightX, a.bot)
+                        line.set_color(a.ln2, color.new(c, trB))
+                        line.set_style(a.ln2, dstyle)
+            else
+                if na(a.bx)
+                    a.bx := box.new(a.bornBar, a.top, rightX, a.bot, xloc = xloc.bar_index,
+                         border_color = color.new(c, trB), border_width = 1, border_style = dstyle,
+                         bgcolor = color.new(c, tr))
+                else
+                    box.set_lefttop(a.bx, a.bornBar, a.top)
+                    box.set_rightbottom(a.bx, rightX, a.bot)
+                    box.set_bgcolor(a.bx, color.new(c, tr))
+                    box.set_border_color(a.bx, color.new(c, trB))
+                    box.set_border_style(a.bx, dstyle)
+                if a.showCe and not gCompact
+                    if na(a.lnCe)
+                        a.lnCe := line.new(a.bornBar, a.ce, rightX, a.ce, xloc = xloc.bar_index,
+                             color = color.new(c, trCe), style = line.style_dashed, width = 1)
+                    else
+                        line.set_xy1(a.lnCe, a.bornBar, a.ce)
+                        line.set_xy2(a.lnCe, rightX, a.ce)
+                else if not na(a.lnCe)
+                    line.delete(a.lnCe)
+                    a.lnCe := na
+            bool wantLabel = not (gCompact and a.strength < 1.2)
+            if wantLabel
+                ly     = a.isLevel ? a.top : (a.dir >= 0 ? a.bot : a.top)
+                lstyle = a.dir >= 0 ? label.style_label_upper_left : label.style_label_lower_left
+                txt    = a.tag + ((a.mod == M_EQ or a.mod == M_LIQ) and a.count > 1 ? " x" + str.tostring(a.count) : "")
+                if na(a.lb)
+                    a.lb := label.new(rightX, ly, txt, xloc = xloc.bar_index, style = lstyle,
+                         color = color.new(c, 20), textcolor = color.new(color.white, 0), size = size.tiny)
+                else
+                    label.set_xy(a.lb, rightX, ly)
+                    label.set_text(a.lb, txt)
+                    label.set_color(a.lb, color.new(c, 20))
+            else if not na(a.lb)
+                label.delete(a.lb)
+                a.lb := na
+
+// ═════════════════════════════ MODULE DETECTORS (stubs — filled per epic) ═════════════════════════════
+f_detect_fvg()  => false        // E2 · S2.1
+f_detect_ifvg() => false        // E2 · S2.2
+f_detect_lv()   => false        // E2 · S2.3
+f_detect_vi()   => false        // E2 · S2.4
+f_detect_og()   => false        // E2 · S2.5
+f_detect_bpr()  => false        // E2 · S2.6
+f_detect_ob()   => false        // E3 · S3.1
+f_detect_brk()  => false        // E3 · S3.2
+f_detect_mb()   => false        // E3 · S3.3
+f_detect_rb()   => false        // E3 · S3.4
+f_detect_liq()  => false        // E4 · S4.1 / S4.2
+f_detect_eq()   => false        // E4 · S4.3
+f_detect_disp() => false        // E4 · S4.4 (leg drawing; booleans computed above)
+f_detect_ms()   => false        // E4 · S4.5
+f_detect_dr()   => false        // E5 · S5.1 / S5.2
+f_detect_ref()  => false        // E5 · S5.3
+f_detect_kl()   => false        // E5 · S5.4
+f_detect_smt()  => false        // E6 · S6.1 / S6.2
+
+// ═════════════════════════════ MAIN ═════════════════════════════
+if barstate.isconfirmed and inLB
+    if f_modOn(M_FVG)
+        f_detect_fvg()
+    if f_modOn(M_IFVG)
+        f_detect_ifvg()
+    if f_modOn(M_LV)
+        f_detect_lv()
+    if f_modOn(M_VI)
+        f_detect_vi()
+    if f_modOn(M_OG)
+        f_detect_og()
+    if f_modOn(M_OB)
+        f_detect_ob()
+    if f_modOn(M_BRK)
+        f_detect_brk()
+    if f_modOn(M_MB)
+        f_detect_mb()
+    if f_modOn(M_RB)
+        f_detect_rb()
+    if f_modOn(M_LIQ)
+        f_detect_liq()
+    if f_modOn(M_EQ)
+        f_detect_eq()
+    if f_modOn(M_MS)
+        f_detect_ms()
+    if f_modOn(M_DR)
+        f_detect_dr()
+    if f_modOn(M_REF)
+        f_detect_ref()
+    if f_modOn(M_KL)
+        f_detect_kl()
+    if f_modOn(M_SMT)
+        f_detect_smt()
+    if f_modOn(M_BPR)
+        f_detect_bpr()
+    if dispOn
+        f_detect_disp()
+    f_lifecycle()
+    f_declutter()
+
+f_render()
+
+// ═════════════════════════════ INFO PANEL ═════════════════════════════
+var table ip = na
+if ipShow and barstate.islast
+    pos = switch ipPos
+        "Top Left"     => position.top_left
+        "Bottom Right" => position.bottom_right
+        "Bottom Left"  => position.bottom_left
+        => position.top_right
+    if na(ip)
+        ip := table.new(pos, 2, 8, border_width = 1, frame_color = color.new(color.gray, 50), frame_width = 1)
+    else
+        table.set_position(ip, pos)
+    float  nBull  = na
+    string nBullT = "—"
+    float  nBear  = na
+    string nBearT = "—"
+    if reg.size() > 0
+        for i = 0 to reg.size() - 1
+            e = reg.get(i)
+            if e.status != "mitigated" and e.shown
+                if e.top <= close and (na(nBull) or e.top > nBull)
+                    nBull  := e.top
+                    nBullT := e.tag
+                if e.bot >= close and (na(nBear) or e.bot < nBear)
+                    nBear  := e.bot
+                    nBearT := e.tag
+    string drPosTxt = "—"
+    drT = drBox.get(0)
+    drB = drBox.get(1)
+    if not na(drT) and not na(drB) and drT > drB
+        pct = (close - drB) / (drT - drB) * 100.0
+        drPosTxt := (pct >= 50 ? "Premium " : "Discount ") + str.tostring(pct, "#.#") + "%"
+    table.cell(ip, 0, 0, "PD ARRAY SUITE", text_color = color.white, text_size = size.small, bgcolor = color.new(color.blue, 70))
+    table.cell(ip, 1, 0, str.tostring(reg.size()) + " tracked", text_color = color.silver, text_size = size.small)
+    table.cell(ip, 0, 1, "Dealing range", text_color = color.silver, text_size = size.small)
+    table.cell(ip, 1, 1, drPosTxt, text_color = color.white, text_size = size.small)
+    table.cell(ip, 0, 2, "Nearest ▲ below", text_color = color.silver, text_size = size.small)
+    table.cell(ip, 1, 2, nBullT + (na(nBull) ? "" : " " + str.tostring(nBull, format.mintick)), text_color = color.new(#26a69a, 0), text_size = size.small)
+    table.cell(ip, 0, 3, "Nearest ▼ above", text_color = color.silver, text_size = size.small)
+    table.cell(ip, 1, 3, nBearT + (na(nBear) ? "" : " " + str.tostring(nBear, format.mintick)), text_color = color.new(#ef5350, 0), text_size = size.small)
+    table.cell(ip, 0, 4, "Last sweep", text_color = color.silver, text_size = size.small)
+    table.cell(ip, 1, 4, evt.get(0), text_color = color.white, text_size = size.small)
+    table.cell(ip, 0, 5, "Last structure", text_color = color.silver, text_size = size.small)
+    table.cell(ip, 1, 5, evt.get(1), text_color = color.white, text_size = size.small)
+    table.cell(ip, 0, 6, "Last SMT", text_color = color.silver, text_size = size.small)
+    table.cell(ip, 1, 6, evt.get(2), text_color = color.white, text_size = size.small)
+    table.cell(ip, 0, 7, "Displacement", text_color = color.silver, text_size = size.small)
+    table.cell(ip, 1, 7, bullDisp ? "▲ bull" : bearDisp ? "▼ bear" : "—", text_color = color.white, text_size = size.small)
+
+// ═════════════════════════════ STATIC ALERTS ═════════════════════════════
+// Real per-module conditions are wired in E7 · S7.2; these keep the alert names
+// registered so users can pre-create alerts.
+alertcondition(false, "PD Array — formed",       "A PD array formed")
+alertcondition(false, "PD Array — tapped",       "Price tapped a PD array")
+alertcondition(false, "PD Array — mitigated",    "A PD array was mitigated")
+alertcondition(false, "Liquidity swept",         "Buyside/Sellside liquidity was swept")
+alertcondition(false, "Market structure shift",  "BOS / MSS / CHoCH")
+alertcondition(false, "SMT divergence",          "SMT divergence detected")
