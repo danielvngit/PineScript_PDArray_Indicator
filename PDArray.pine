@@ -269,6 +269,8 @@ type PDArray
     bool   shown        = true       // set by f_declutter(); read by f_render()
     color  col          = na         // explicit color override; else derived
     bool   alertedTap   = false
+    int    flag         = 0          // module-specific state (e.g. breaker phase, "inverted")
+    float  aux          = na         // module-specific scratch value
     // drawing handles
     box    bx           = na
     line   ln1          = na
