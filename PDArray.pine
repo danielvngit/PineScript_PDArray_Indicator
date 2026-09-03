@@ -40,8 +40,8 @@ int MH_REMOVE = 1
 int MH_KEEP   = 2
 
 // ═════════════════════════════ GLOBAL INPUTS ═════════════════════════════
-gEnableAll  = input.bool(true, "Enable All Modules (master switch)", group = "Global / Theme",
-     tooltip = "Off = every module is disabled regardless of its own toggle (emergency brake).")
+gHideAll    = input.bool(false, "Hide ALL modules (override)", group = "Global / Theme",
+     tooltip = "Leave OFF. This is a global kill-switch: turning it ON hides every module at once, regardless of the individual Enable toggles. Individual module toggles work normally while this is OFF.")
 gTheme      = input.string("Neutral", "Color Theme", options = ["Neutral", "Vivid", "Mono"], group = "Global / Theme",
      tooltip = "Preset that tints modules that are left on their default colors. Explicit per-module color overrides always win.")
 gCompact    = input.bool(false, "Compact Mode", group = "Global / Theme",
@@ -444,7 +444,7 @@ f_modOn(int m) =>
         M_KL   => klOn
         M_MS   => msOn
         => false
-    gEnableAll and on
+    (not gHideAll) and on
 
 f_modMax(int m) =>
     switch m
