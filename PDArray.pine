@@ -3,7 +3,7 @@
 // toggleable modules on a shared lifecycle / decluttering / rendering core.
 // See PRD.md for the full specification. Pine is the source implementation;
 // MQL5 and cTrader ports follow in separate epics (E8/E9).
-indicator("ICT PD Array Suite", "PD Arrays", overlay = true,
+indicator("ICT PD Array Matrix", "PD Arrays", overlay = true,
      max_boxes_count = 500, max_lines_count = 500, max_labels_count = 500, max_bars_back = 3000)
 
 // ═════════════════════════════ MODULE IDS ═════════════════════════════
