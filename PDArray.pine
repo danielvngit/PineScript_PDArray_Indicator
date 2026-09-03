@@ -665,75 +665,70 @@ f_declutter() =>
                         eb.shown := true
 
 // Rendering: (re)draw each array's handles honoring compact mode + status.
+// Every "create if missing" is a lone `if` followed by unconditional set_*()
+// calls — so no if/else returns two different types (Pine CE10235) and the
+// loop body always ends on a void statement.
 f_render() =>
     if reg.size() > 0
         for i = 0 to reg.size() - 1
             a = reg.get(i)
-            bool draw = a.shown and f_modOn(a.mod) and inLB and (bar_index - a.bornBar) <= gLookback
-            if not draw
+            if not (a.shown and f_modOn(a.mod) and inLB and (bar_index - a.bornBar) <= gLookback)
                 f_delete(a)
+                continue
+            c      = f_color(a)
+            agef   = math.min(1.0, (bar_index - a.lastBar) / 300.0)
+            tr     = int(math.min(95.0, gTranspBase + agef * 12.0 + (a.status == "mitigated" ? 10.0 : 0.0)))
+            trB    = math.max(0, tr - 40)
+            trCe   = math.max(0, tr - 30)
+            rightX = a.extend ? bar_index + 10 : bar_index + 2
+            dstyle = a.status == "mitigated" ? line.style_dotted : line.style_solid
+            if a.isLevel
+                if na(a.ln1)
+                    a.ln1 := line.new(a.bornBar, a.top, rightX, a.top, xloc = xloc.bar_index, width = 1)
+                line.set_xy1(a.ln1, a.bornBar, a.top)
+                line.set_xy2(a.ln1, rightX, a.top)
+                line.set_color(a.ln1, color.new(c, trB))
+                line.set_style(a.ln1, dstyle)
+                if a.twoLine and na(a.ln2)
+                    a.ln2 := line.new(a.bornBar, a.bot, rightX, a.bot, xloc = xloc.bar_index, width = 1)
+                if a.twoLine and not na(a.ln2)
+                    line.set_xy1(a.ln2, a.bornBar, a.bot)
+                    line.set_xy2(a.ln2, rightX, a.bot)
+                    line.set_color(a.ln2, color.new(c, trB))
+                    line.set_style(a.ln2, dstyle)
             else
-                c      = f_color(a)
-                agef   = math.min(1.0, (bar_index - a.lastBar) / 300.0)
-                tr     = int(math.min(95.0, gTranspBase + agef * 12.0 + (a.status == "mitigated" ? 10.0 : 0.0)))
-                trB    = math.max(0, tr - 40)
-                trCe   = math.max(0, tr - 30)
-                rightX = a.extend ? bar_index + 10 : bar_index + 2
-                dstyle = a.status == "mitigated" ? line.style_dotted : line.style_solid
-                if a.isLevel
-                    if na(a.ln1)
-                        a.ln1 := line.new(a.bornBar, a.top, rightX, a.top, xloc = xloc.bar_index,
-                             color = color.new(c, trB), style = dstyle, width = 1)
-                    else
-                        line.set_xy1(a.ln1, a.bornBar, a.top)
-                        line.set_xy2(a.ln1, rightX, a.top)
-                        line.set_color(a.ln1, color.new(c, trB))
-                        line.set_style(a.ln1, dstyle)
-                    if a.twoLine
-                        if na(a.ln2)
-                            a.ln2 := line.new(a.bornBar, a.bot, rightX, a.bot, xloc = xloc.bar_index,
-                                 color = color.new(c, trB), style = dstyle, width = 1)
-                        else
-                            line.set_xy1(a.ln2, a.bornBar, a.bot)
-                            line.set_xy2(a.ln2, rightX, a.bot)
-                            line.set_color(a.ln2, color.new(c, trB))
-                            line.set_style(a.ln2, dstyle)
-                else
-                    if na(a.bx)
-                        a.bx := box.new(a.bornBar, a.top, rightX, a.bot, xloc = xloc.bar_index,
-                             border_color = color.new(c, trB), border_width = 1, border_style = dstyle,
-                             bgcolor = color.new(c, tr))
-                    else
-                        box.set_lefttop(a.bx, a.bornBar, a.top)
-                        box.set_rightbottom(a.bx, rightX, a.bot)
-                        box.set_bgcolor(a.bx, color.new(c, tr))
-                        box.set_border_color(a.bx, color.new(c, trB))
-                        box.set_border_style(a.bx, dstyle)
-                    if a.showCe and not gCompact
-                        if na(a.lnCe)
-                            a.lnCe := line.new(a.bornBar, a.ce, rightX, a.ce, xloc = xloc.bar_index,
-                                 color = color.new(c, trCe), style = line.style_dashed, width = 1)
-                        else
-                            line.set_xy1(a.lnCe, a.bornBar, a.ce)
-                            line.set_xy2(a.lnCe, rightX, a.ce)
-                    else if not na(a.lnCe)
-                        line.delete(a.lnCe)
-                        a.lnCe := na
-                bool wantLabel = not (gCompact and a.strength < 1.2)
-                if wantLabel
-                    ly     = a.isLevel ? a.top : (a.dir >= 0 ? a.bot : a.top)
-                    lstyle = a.dir >= 0 ? label.style_label_upper_left : label.style_label_lower_left
-                    txt    = a.tag + ((a.mod == M_EQ or a.mod == M_LIQ) and a.count > 1 ? " x" + str.tostring(a.count) : "")
-                    if na(a.lb)
-                        a.lb := label.new(rightX, ly, txt, xloc = xloc.bar_index, style = lstyle,
-                             color = color.new(c, 20), textcolor = color.new(color.white, 0), size = size.tiny)
-                    else
-                        label.set_xy(a.lb, rightX, ly)
-                        label.set_text(a.lb, txt)
-                        label.set_color(a.lb, color.new(c, 20))
-                else if not na(a.lb)
-                    label.delete(a.lb)
-                    a.lb := na
+                if na(a.bx)
+                    a.bx := box.new(a.bornBar, a.top, rightX, a.bot, xloc = xloc.bar_index)
+                box.set_lefttop(a.bx, a.bornBar, a.top)
+                box.set_rightbottom(a.bx, rightX, a.bot)
+                box.set_bgcolor(a.bx, color.new(c, tr))
+                box.set_border_color(a.bx, color.new(c, trB))
+                box.set_border_style(a.bx, dstyle)
+                box.set_border_width(a.bx, 1)
+                if a.showCe and not gCompact and na(a.lnCe)
+                    a.lnCe := line.new(a.bornBar, a.ce, rightX, a.ce, xloc = xloc.bar_index, style = line.style_dashed, width = 1)
+                if a.showCe and not gCompact and not na(a.lnCe)
+                    line.set_xy1(a.lnCe, a.bornBar, a.ce)
+                    line.set_xy2(a.lnCe, rightX, a.ce)
+                    line.set_color(a.lnCe, color.new(c, trCe))
+                if (not a.showCe or gCompact) and not na(a.lnCe)
+                    line.delete(a.lnCe)
+                    a.lnCe := na
+            bool wantLabel = not (gCompact and a.strength < 1.2)
+            if (not wantLabel) and not na(a.lb)
+                label.delete(a.lb)
+                a.lb := na
+            if wantLabel
+                ly     = a.isLevel ? a.top : (a.dir >= 0 ? a.bot : a.top)
+                lstyle = a.dir >= 0 ? label.style_label_upper_left : label.style_label_lower_left
+                txt    = a.tag + ((a.mod == M_EQ or a.mod == M_LIQ) and a.count > 1 ? " x" + str.tostring(a.count) : "")
+                if na(a.lb)
+                    a.lb := label.new(rightX, ly, txt, xloc = xloc.bar_index, size = size.tiny)
+                label.set_xy(a.lb, rightX, ly)
+                label.set_text(a.lb, txt)
+                label.set_style(a.lb, lstyle)
+                label.set_color(a.lb, color.new(c, 20))
+                label.set_textcolor(a.lb, color.new(color.white, 0))
 
 // ═════════════════════════════ MODULE DETECTORS ═════════════════════════════
 // Each runs once per confirmed bar (from MAIN) when its module is enabled.
@@ -907,19 +902,18 @@ f_detect_brk() =>
     if reg.size() > 0
         for i = 0 to reg.size() - 1
             e = reg.get(i)
-            if e.mod == M_OB and e.flag < 2
-                if e.flag == 0
-                    violated = e.dir >= 0 ? close < e.bot : close > e.top
-                    if violated
-                        e.flag := 1
-                else if e.flag == 1
-                    retest = high >= e.bot and low <= e.top
-                    if retest
-                        e.flag := 2
-                        ndir = e.dir >= 0 ? -1 : 1
-                        f_register(PDArray.new(mod = M_BRK, tag = ndir > 0 ? "BRK+" : "BRK-", dir = ndir,
-                             top = e.top, bot = e.bot, bornOff = bar_index - e.bornBar,
-                             mitRule = MIT_FAREDGE, mitHandling = f_mhCode(brkMH), maxAge = brkAge, showCe = true))
+            if e.mod == M_OB and e.flag == 0
+                violated = e.dir >= 0 ? close < e.bot : close > e.top
+                if violated
+                    e.flag := 1
+            if e.mod == M_OB and e.flag == 1
+                retest = high >= e.bot and low <= e.top
+                if retest
+                    e.flag := 2
+                    ndir = e.dir >= 0 ? -1 : 1
+                    f_register(PDArray.new(mod = M_BRK, tag = ndir > 0 ? "BRK+" : "BRK-", dir = ndir,
+                         top = e.top, bot = e.bot, bornOff = bar_index - e.bornBar,
+                         mitRule = MIT_FAREDGE, mitHandling = f_mhCode(brkMH), maxAge = brkAge, showCe = true))
 
 // ─── ③ Mitigation Block  (E3 · S3.3) ─────────────────────────────────
 // The "weak" OB counterpart: an opposite-close candle preceding a NON-
