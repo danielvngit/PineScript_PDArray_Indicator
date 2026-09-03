@@ -48,7 +48,7 @@ gCompact    = input.bool(false, "Compact Mode", group = "Global / Theme",
      tooltip = "Thinner borders, no CE / midlines, labels only for above-average-strength arrays. Calms the chart when many modules are on.")
 gTranspBase = input.int(80, "Base Transparency", minval = 0, maxval = 95, group = "Global / Theme",
      tooltip = "Transparency of a fresh array. Stronger / fresher arrays render a little more opaque than this.")
-gLookback   = input.int(600, "Lookback Bars", minval = 200, maxval = 5000, group = "Global / Theme",
+gLookback   = input.int(400, "Lookback Bars", minval = 200, maxval = 5000, group = "Global / Theme",
      tooltip = "Detection and drawing only run within this many bars of the current bar (performance).")
 gMergePct   = input.float(80.0, "Merge Overlap %", minval = 0, maxval = 100, step = 5, group = "Global / Theme",
      tooltip = "A new array of the same module + direction that overlaps an existing one by more than this % merges into it instead of duplicating.")
@@ -165,9 +165,9 @@ liqSSL   = input.bool(true, "Sellside (old lows)", group = "⑩ Liquidity (BSL/S
 liqTrend = input.bool(false, "Trendline liquidity (simplified)", group = "⑩ Liquidity (BSL/SSL)")
 liqBuyCol= input.color(color.new(#26a69a, 0), "BSL color", group = "⑩ Liquidity (BSL/SSL)", inline = "lqc")
 liqSellCol=input.color(color.new(#ef5350, 0), "SSL color", group = "⑩ Liquidity (BSL/SSL)", inline = "lqc")
-liqMax   = input.int(4, "Max shown per side", minval = 1, maxval = 20, group = "⑩ Liquidity (BSL/SSL)")
+liqMax   = input.int(3, "Max shown per side", minval = 1, maxval = 20, group = "⑩ Liquidity (BSL/SSL)")
 liqMH    = input.string("Remove", "Swept handling", options = ["Fade", "Remove", "Keep"], group = "⑩ Liquidity (BSL/SSL)")
-liqAge   = input.int(800, "Max age (bars)", minval = 20, group = "⑩ Liquidity (BSL/SSL)")
+liqAge   = input.int(350, "Max age (bars)", minval = 20, group = "⑩ Liquidity (BSL/SSL)")
 
 // Equal Highs / Lows (M_EQ)
 eqOn     = input.bool(true, "⑪ Equal Highs/Lows — enable", group = "⑪ Equal Highs/Lows")
@@ -200,7 +200,7 @@ refDay   = input.bool(true, "PDH / PDL", group = "⑬ Reference Levels", inline 
 refWeek  = input.bool(true, "PWH / PWL", group = "⑬ Reference Levels", inline = "rft")
 refMonth = input.bool(false, "PMH / PML", group = "⑬ Reference Levels", inline = "rft")
 refCol   = input.color(color.new(#90a4ae, 0), "Level color", group = "⑬ Reference Levels")
-refMH    = input.string("Keep", "Swept handling", options = ["Fade", "Remove", "Keep"], group = "⑬ Reference Levels")
+refMH    = input.string("Fade", "Swept handling", options = ["Fade", "Remove", "Keep"], group = "⑬ Reference Levels")
 
 // Balanced Price Range (M_BPR)
 bprOn    = input.bool(false, "⑭ Balanced Price Range — enable", group = "⑭ Balanced Price Range")
@@ -250,7 +250,7 @@ msBasis  = input.string("Close", "Structure basis", options = ["Close", "Wick"],
 msReqDisp= input.bool(true, "MSS requires displacement", group = "⑱ Market Structure")
 msBosCol = input.color(color.new(#26a69a, 0), "BOS color", group = "⑱ Market Structure", inline = "msc")
 msMssCol = input.color(color.new(#ef5350, 0), "MSS color", group = "⑱ Market Structure", inline = "msc")
-msMax    = input.int(6, "Max shown", minval = 1, maxval = 20, group = "⑱ Market Structure")
+msMax    = input.int(4, "Max shown", minval = 1, maxval = 20, group = "⑱ Market Structure")
 
 // ═════════════════════════════ TYPES ═════════════════════════════
 type PDArray
@@ -300,8 +300,8 @@ int HARD_CAP = 500
 var array<string> evt = array.new<string>(3, "none")
 
 // dealing-range snapshot filled by module ⑫, read by the info panel.
-// 0 = range top, 1 = range bottom, 2 = leg direction (+1 up / -1 down).
-var array<float> drBox = array.new<float>(3, na)
+// 0 = range top, 1 = range bottom, 2 = leg direction (+1 up / -1 down), 3 = origin bar.
+var array<float> drBox = array.new<float>(4, na)
 
 // recent confirmed pivots (shared by modules ⑩ ⑪ ⑮ ⑱); newest appended last.
 var array<float> phBuf     = array.new<float>()
@@ -460,11 +460,11 @@ f_modMax(int m) =>
         M_LIQ  => liqMax * 2
         M_EQ   => eqMax
         M_DR   => 60
-        M_REF  => 12
+        M_REF  => 5
         M_BPR  => bprMax
         M_SMT  => smtMax
         M_DISP => dispMax
-        M_KL   => 40
+        M_KL   => 14
         M_MS   => msMax
         => 6
 
@@ -714,7 +714,10 @@ f_render() =>
                 if (not a.showCe or gCompact) and not na(a.lnCe)
                     line.delete(a.lnCe)
                     a.lnCe := na
-            bool wantLabel = not (gCompact and a.strength < 1.2)
+            // suppress the label for a level sitting far from price (keeps the
+            // line, drops the text) so the right margin doesn't fill with tags.
+            bool farLbl   = a.isLevel and math.abs(a.top - close) > 12 * atr
+            bool wantLabel = not (gCompact and a.strength < 1.2) and not farLbl
             if (not wantLabel) and not na(a.lb)
                 label.delete(a.lb)
                 a.lb := na
@@ -1026,7 +1029,7 @@ f_detect_ms() =>
             tagU = isMssU ? "MSS ×" : "BOS ×"
             au = PDArray.new(mod = M_MS, tag = tagU, dir = 1, top = pHigh, bot = pHigh, isLevel = true,
                  bornOff = bar_index - int(msState.get(1)), mitRule = MIT_NONE, mitHandling = MH_KEEP,
-                 maxAge = 4000, col = isMssU ? msMssCol : msBosCol)
+                 maxAge = 450, col = isMssU ? msMssCol : msBosCol)
             f_register(au)
             evt.set(1, (isMssU ? "MSS bull @ " : "BOS bull @ ") + str.tostring(pHigh, format.mintick))
             msState.set(0, na)
@@ -1037,7 +1040,7 @@ f_detect_ms() =>
             tagD = isMssD ? "MSS ×" : "BOS ×"
             ad = PDArray.new(mod = M_MS, tag = tagD, dir = -1, top = pLow, bot = pLow, isLevel = true,
                  bornOff = bar_index - int(msState.get(3)), mitRule = MIT_NONE, mitHandling = MH_KEEP,
-                 maxAge = 4000, col = isMssD ? msMssCol : msBosCol)
+                 maxAge = 450, col = isMssD ? msMssCol : msBosCol)
             f_register(ad)
             evt.set(1, (isMssD ? "MSS bear @ " : "BOS bear @ ") + str.tostring(pLow, format.mintick))
             msState.set(2, na)
@@ -1064,9 +1067,14 @@ f_detect_dr() =>
         drBox.set(1, b)
         // leg direction: +1 if the swing high is the more recent pivot
         d = 1
+        float org = na
         if drSrc == "Auto swing" and phBarBuf.size() > 0 and plBarBuf.size() > 0
-            d := phBarBuf.get(phBarBuf.size() - 1) >= plBarBuf.get(plBarBuf.size() - 1) ? 1 : -1
+            phb = phBarBuf.get(phBarBuf.size() - 1)
+            plb = plBarBuf.get(plBarBuf.size() - 1)
+            d   := phb >= plb ? 1 : -1
+            org := math.min(phb, plb)
         drBox.set(2, d)
+        drBox.set(3, org)
 
 // ─── ⑬ Reference Levels — PDH/PDL, PWH/PWL, PMH/PML  (E5 · S5.3) ─────
 f_detect_ref() =>
@@ -1294,7 +1302,7 @@ if barstate.islast
     else
         rngv = drT - drB
         eqv  = (drT + drB) / 2.0
-        lft  = bar_index - 1
+        lft  = na(drBox.get(3)) ? bar_index - 80 : math.max(int(drBox.get(3)), bar_index - gLookback)
         rgt  = bar_index + 15
         if drShowBox
             if na(drPremBx)
