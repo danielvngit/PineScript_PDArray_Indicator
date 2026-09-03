@@ -1154,8 +1154,11 @@ f_detect_smt() =>
                 f_smtTrim()
 
 // ═════════════════════════════ MAIN ═════════════════════════════
+// Feeder modules (① OB, ⑤ FVG) keep DETECTING whenever a dependent module
+// needs them (② needs ①; ⑥ ⑭ need ⑤); f_render only DRAWS an array when its
+// own module toggle is on, so isolated testing of the dependents still works.
 if barstate.isconfirmed and inLB
-    if f_modOn(M_FVG)
+    if f_modOn(M_FVG) or f_modOn(M_IFVG) or f_modOn(M_BPR)
         f_detect_fvg()
     if f_modOn(M_IFVG)
         f_detect_ifvg()
@@ -1165,7 +1168,7 @@ if barstate.isconfirmed and inLB
         f_detect_vi()
     if f_modOn(M_OG)
         f_detect_og()
-    if f_modOn(M_OB)
+    if f_modOn(M_OB) or f_modOn(M_BRK)
         f_detect_ob()
     if f_modOn(M_BRK)
         f_detect_brk()
@@ -1367,7 +1370,7 @@ if ipShow and barstate.islast
     if reg.size() > 0
         for i = 0 to reg.size() - 1
             e = reg.get(i)
-            if e.status != "mitigated" and e.shown
+            if e.status != "mitigated" and e.shown and f_modOn(e.mod)
                 if e.top <= close and (na(nBull) or e.top > nBull)
                     nBull  := e.top
                     nBullT := e.tag
