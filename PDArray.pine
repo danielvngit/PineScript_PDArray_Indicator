@@ -634,19 +634,22 @@ f_lifecycle() =>
                 reg.remove(i)
 
 // Decluttering: per module keep only the strongest/most-recent `Max Shown`.
+// Field writes go through a local var (Pine can't assign to array.get(i).field).
 f_declutter() =>
     if reg.size() > 0
         for m = 1 to 18
             keep = f_modMax(m)
             cnt  = 0
             for i = 0 to reg.size() - 1
-                if reg.get(i).mod == m
+                ei = reg.get(i)
+                if ei.mod == m
                     cnt += 1
-                    reg.get(i).shown := true
+                    ei.shown := true
             if cnt > keep
                 for i = 0 to reg.size() - 1
-                    if reg.get(i).mod == m
-                        reg.get(i).shown := false
+                    ej = reg.get(i)
+                    if ej.mod == m
+                        ej.shown := false
                 for pass = 0 to keep - 1
                     bi = -1
                     bv = -1e30
@@ -658,7 +661,8 @@ f_declutter() =>
                                 bv := sc
                                 bi := i
                     if bi >= 0
-                        reg.get(bi).shown := true
+                        eb = reg.get(bi)
+                        eb.shown := true
 
 // Rendering: (re)draw each array's handles honoring compact mode + status.
 f_render() =>
@@ -668,68 +672,68 @@ f_render() =>
             bool draw = a.shown and f_modOn(a.mod) and inLB and (bar_index - a.bornBar) <= gLookback
             if not draw
                 f_delete(a)
-                continue
-            c      = f_color(a)
-            agef   = math.min(1.0, (bar_index - a.lastBar) / 300.0)
-            tr     = int(math.min(95.0, gTranspBase + agef * 12.0 + (a.status == "mitigated" ? 10.0 : 0.0)))
-            trB    = math.max(0, tr - 40)
-            trCe   = math.max(0, tr - 30)
-            rightX = a.extend ? bar_index + 10 : bar_index + 2
-            dstyle = a.status == "mitigated" ? line.style_dotted : line.style_solid
-            if a.isLevel
-                if na(a.ln1)
-                    a.ln1 := line.new(a.bornBar, a.top, rightX, a.top, xloc = xloc.bar_index,
-                         color = color.new(c, trB), style = dstyle, width = 1)
-                else
-                    line.set_xy1(a.ln1, a.bornBar, a.top)
-                    line.set_xy2(a.ln1, rightX, a.top)
-                    line.set_color(a.ln1, color.new(c, trB))
-                    line.set_style(a.ln1, dstyle)
-                if a.twoLine
-                    if na(a.ln2)
-                        a.ln2 := line.new(a.bornBar, a.bot, rightX, a.bot, xloc = xloc.bar_index,
+            else
+                c      = f_color(a)
+                agef   = math.min(1.0, (bar_index - a.lastBar) / 300.0)
+                tr     = int(math.min(95.0, gTranspBase + agef * 12.0 + (a.status == "mitigated" ? 10.0 : 0.0)))
+                trB    = math.max(0, tr - 40)
+                trCe   = math.max(0, tr - 30)
+                rightX = a.extend ? bar_index + 10 : bar_index + 2
+                dstyle = a.status == "mitigated" ? line.style_dotted : line.style_solid
+                if a.isLevel
+                    if na(a.ln1)
+                        a.ln1 := line.new(a.bornBar, a.top, rightX, a.top, xloc = xloc.bar_index,
                              color = color.new(c, trB), style = dstyle, width = 1)
                     else
-                        line.set_xy1(a.ln2, a.bornBar, a.bot)
-                        line.set_xy2(a.ln2, rightX, a.bot)
-                        line.set_color(a.ln2, color.new(c, trB))
-                        line.set_style(a.ln2, dstyle)
-            else
-                if na(a.bx)
-                    a.bx := box.new(a.bornBar, a.top, rightX, a.bot, xloc = xloc.bar_index,
-                         border_color = color.new(c, trB), border_width = 1, border_style = dstyle,
-                         bgcolor = color.new(c, tr))
+                        line.set_xy1(a.ln1, a.bornBar, a.top)
+                        line.set_xy2(a.ln1, rightX, a.top)
+                        line.set_color(a.ln1, color.new(c, trB))
+                        line.set_style(a.ln1, dstyle)
+                    if a.twoLine
+                        if na(a.ln2)
+                            a.ln2 := line.new(a.bornBar, a.bot, rightX, a.bot, xloc = xloc.bar_index,
+                                 color = color.new(c, trB), style = dstyle, width = 1)
+                        else
+                            line.set_xy1(a.ln2, a.bornBar, a.bot)
+                            line.set_xy2(a.ln2, rightX, a.bot)
+                            line.set_color(a.ln2, color.new(c, trB))
+                            line.set_style(a.ln2, dstyle)
                 else
-                    box.set_lefttop(a.bx, a.bornBar, a.top)
-                    box.set_rightbottom(a.bx, rightX, a.bot)
-                    box.set_bgcolor(a.bx, color.new(c, tr))
-                    box.set_border_color(a.bx, color.new(c, trB))
-                    box.set_border_style(a.bx, dstyle)
-                if a.showCe and not gCompact
-                    if na(a.lnCe)
-                        a.lnCe := line.new(a.bornBar, a.ce, rightX, a.ce, xloc = xloc.bar_index,
-                             color = color.new(c, trCe), style = line.style_dashed, width = 1)
+                    if na(a.bx)
+                        a.bx := box.new(a.bornBar, a.top, rightX, a.bot, xloc = xloc.bar_index,
+                             border_color = color.new(c, trB), border_width = 1, border_style = dstyle,
+                             bgcolor = color.new(c, tr))
                     else
-                        line.set_xy1(a.lnCe, a.bornBar, a.ce)
-                        line.set_xy2(a.lnCe, rightX, a.ce)
-                else if not na(a.lnCe)
-                    line.delete(a.lnCe)
-                    a.lnCe := na
-            bool wantLabel = not (gCompact and a.strength < 1.2)
-            if wantLabel
-                ly     = a.isLevel ? a.top : (a.dir >= 0 ? a.bot : a.top)
-                lstyle = a.dir >= 0 ? label.style_label_upper_left : label.style_label_lower_left
-                txt    = a.tag + ((a.mod == M_EQ or a.mod == M_LIQ) and a.count > 1 ? " x" + str.tostring(a.count) : "")
-                if na(a.lb)
-                    a.lb := label.new(rightX, ly, txt, xloc = xloc.bar_index, style = lstyle,
-                         color = color.new(c, 20), textcolor = color.new(color.white, 0), size = size.tiny)
-                else
-                    label.set_xy(a.lb, rightX, ly)
-                    label.set_text(a.lb, txt)
-                    label.set_color(a.lb, color.new(c, 20))
-            else if not na(a.lb)
-                label.delete(a.lb)
-                a.lb := na
+                        box.set_lefttop(a.bx, a.bornBar, a.top)
+                        box.set_rightbottom(a.bx, rightX, a.bot)
+                        box.set_bgcolor(a.bx, color.new(c, tr))
+                        box.set_border_color(a.bx, color.new(c, trB))
+                        box.set_border_style(a.bx, dstyle)
+                    if a.showCe and not gCompact
+                        if na(a.lnCe)
+                            a.lnCe := line.new(a.bornBar, a.ce, rightX, a.ce, xloc = xloc.bar_index,
+                                 color = color.new(c, trCe), style = line.style_dashed, width = 1)
+                        else
+                            line.set_xy1(a.lnCe, a.bornBar, a.ce)
+                            line.set_xy2(a.lnCe, rightX, a.ce)
+                    else if not na(a.lnCe)
+                        line.delete(a.lnCe)
+                        a.lnCe := na
+                bool wantLabel = not (gCompact and a.strength < 1.2)
+                if wantLabel
+                    ly     = a.isLevel ? a.top : (a.dir >= 0 ? a.bot : a.top)
+                    lstyle = a.dir >= 0 ? label.style_label_upper_left : label.style_label_lower_left
+                    txt    = a.tag + ((a.mod == M_EQ or a.mod == M_LIQ) and a.count > 1 ? " x" + str.tostring(a.count) : "")
+                    if na(a.lb)
+                        a.lb := label.new(rightX, ly, txt, xloc = xloc.bar_index, style = lstyle,
+                             color = color.new(c, 20), textcolor = color.new(color.white, 0), size = size.tiny)
+                    else
+                        label.set_xy(a.lb, rightX, ly)
+                        label.set_text(a.lb, txt)
+                        label.set_color(a.lb, color.new(c, 20))
+                else if not na(a.lb)
+                    label.delete(a.lb)
+                    a.lb := na
 
 // ═════════════════════════════ MODULE DETECTORS ═════════════════════════════
 // Each runs once per confirmed bar (from MAIN) when its module is enabled.
