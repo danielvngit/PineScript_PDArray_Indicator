@@ -90,18 +90,18 @@ brkMH   = input.string("Fade", "Mitigated handling", options = ["Fade", "Remove"
 brkAge  = input.int(500, "Max age (bars)", minval = 20, group = "② Breaker Block")
 
 // Mitigation Block (M_MB)
-mbOn   = input.bool(false, "③ Mitigation Block — enable", group = "③ Mitigation Block")
+mbOn   = input.bool(true, "③ Mitigation Block — enable", group = "③ Mitigation Block")
 mbBull = input.color(color.new(#66bb6a, 0), "Bull color", group = "③ Mitigation Block", inline = "mbc")
 mbBear = input.color(color.new(#ffa726, 0), "Bear color", group = "③ Mitigation Block", inline = "mbc")
-mbMax  = input.int(4, "Max shown", minval = 1, maxval = 20, group = "③ Mitigation Block")
+mbMax  = input.int(3, "Max shown", minval = 1, maxval = 20, group = "③ Mitigation Block")
 mbMH   = input.string("Fade", "Mitigated handling", options = ["Fade", "Remove", "Keep"], group = "③ Mitigation Block")
 mbAge  = input.int(400, "Max age (bars)", minval = 20, group = "③ Mitigation Block")
 
 // Rejection Block (M_RB)
-rbOn    = input.bool(false, "④ Rejection Block — enable", group = "④ Rejection Block")
+rbOn    = input.bool(true, "④ Rejection Block — enable", group = "④ Rejection Block")
 rbBull  = input.color(color.new(#4db6ac, 0), "Bull color", group = "④ Rejection Block", inline = "rbc")
 rbBear  = input.color(color.new(#ff7043, 0), "Bear color", group = "④ Rejection Block", inline = "rbc")
-rbMax   = input.int(5, "Max shown", minval = 1, maxval = 20, group = "④ Rejection Block")
+rbMax   = input.int(3, "Max shown", minval = 1, maxval = 20, group = "④ Rejection Block")
 rbMH    = input.string("Fade", "Mitigated handling", options = ["Fade", "Remove", "Keep"], group = "④ Rejection Block")
 rbWickRatio = input.float(0.65, "Min wick / range ratio", minval = 0.3, maxval = 0.95, step = 0.05, group = "④ Rejection Block")
 rbMinWickAtr= input.float(0.6, "Min wick (x ATR)", minval = 0.1, step = 0.1, group = "④ Rejection Block")
@@ -121,18 +121,18 @@ fvgFill  = input.string("CE (50%)", "Fill rule", options = ["CE (50%)", "Full fi
 fvgAge   = input.int(500, "Max age (bars)", minval = 20, group = "⑤ Fair Value Gap")
 
 // Inversion FVG (M_IFVG)
-ifvgOn   = input.bool(false, "⑥ Inversion FVG — enable", group = "⑥ Inversion FVG")
+ifvgOn   = input.bool(true, "⑥ Inversion FVG — enable", group = "⑥ Inversion FVG")
 ifvgBull = input.color(color.new(#1e88e5, 0), "Bull color", group = "⑥ Inversion FVG", inline = "ifc")
 ifvgBear = input.color(color.new(#8e24aa, 0), "Bear color", group = "⑥ Inversion FVG", inline = "ifc")
-ifvgMax  = input.int(6, "Max shown", minval = 1, maxval = 30, group = "⑥ Inversion FVG")
+ifvgMax  = input.int(3, "Max shown", minval = 1, maxval = 30, group = "⑥ Inversion FVG")
 ifvgMH   = input.string("Fade", "Mitigated handling", options = ["Fade", "Remove", "Keep"], group = "⑥ Inversion FVG")
 ifvgAge  = input.int(500, "Max age (bars)", minval = 20, group = "⑥ Inversion FVG")
 
 // Liquidity Void (M_LV)
-lvOn     = input.bool(false, "⑦ Liquidity Void — enable", group = "⑦ Liquidity Void")
+lvOn     = input.bool(true, "⑦ Liquidity Void — enable", group = "⑦ Liquidity Void")
 lvBull   = input.color(color.new(#78909c, 0), "Bull color", group = "⑦ Liquidity Void", inline = "lvc")
 lvBear   = input.color(color.new(#8d6e63, 0), "Bear color", group = "⑦ Liquidity Void", inline = "lvc")
-lvMax    = input.int(4, "Max shown", minval = 1, maxval = 20, group = "⑦ Liquidity Void")
+lvMax    = input.int(3, "Max shown", minval = 1, maxval = 20, group = "⑦ Liquidity Void")
 lvMH     = input.string("Fade", "Mitigated handling", options = ["Fade", "Remove", "Keep"], group = "⑦ Liquidity Void")
 lvMinBars= input.int(3, "Min bars", minval = 2, maxval = 10, group = "⑦ Liquidity Void")
 lvMinAtr = input.float(2.5, "Min range (x ATR)", minval = 0.5, step = 0.5, group = "⑦ Liquidity Void")
@@ -140,10 +140,10 @@ lvFillPct= input.float(50.0, "Fill % for mitigation", minval = 10, maxval = 100,
 lvAge    = input.int(500, "Max age (bars)", minval = 20, group = "⑦ Liquidity Void")
 
 // Volume Imbalance (M_VI)
-viOn   = input.bool(false, "⑧ Volume Imbalance — enable", group = "⑧ Volume Imbalance")
+viOn   = input.bool(true, "⑧ Volume Imbalance — enable", group = "⑧ Volume Imbalance")
 viBull = input.color(color.new(#26c6da, 0), "Bull color", group = "⑧ Volume Imbalance", inline = "vic")
 viBear = input.color(color.new(#ec407a, 0), "Bear color", group = "⑧ Volume Imbalance", inline = "vic")
-viMax  = input.int(6, "Max shown", minval = 1, maxval = 30, group = "⑧ Volume Imbalance")
+viMax  = input.int(3, "Max shown", minval = 1, maxval = 30, group = "⑧ Volume Imbalance")
 viMH   = input.string("Remove", "Mitigated handling", options = ["Fade", "Remove", "Keep"], group = "⑧ Volume Imbalance")
 viAge  = input.int(300, "Max age (bars)", minval = 20, group = "⑧ Volume Imbalance")
 
@@ -203,15 +203,15 @@ refCol   = input.color(color.new(#90a4ae, 0), "Level color", group = "⑬ Refere
 refMH    = input.string("Fade", "Swept handling", options = ["Fade", "Remove", "Keep"], group = "⑬ Reference Levels")
 
 // Balanced Price Range (M_BPR)
-bprOn    = input.bool(false, "⑭ Balanced Price Range — enable", group = "⑭ Balanced Price Range")
+bprOn    = input.bool(true, "⑭ Balanced Price Range — enable", group = "⑭ Balanced Price Range")
 bprCol   = input.color(color.new(#ffca28, 0), "BPR color", group = "⑭ Balanced Price Range")
 bprMaxApart = input.int(10, "Max bars apart (bull vs bear FVG)", minval = 1, maxval = 50, group = "⑭ Balanced Price Range")
-bprMax   = input.int(4, "Max shown", minval = 1, maxval = 20, group = "⑭ Balanced Price Range")
+bprMax   = input.int(3, "Max shown", minval = 1, maxval = 20, group = "⑭ Balanced Price Range")
 bprMH    = input.string("Remove", "Mitigated handling", options = ["Fade", "Remove", "Keep"], group = "⑭ Balanced Price Range")
 bprAge   = input.int(500, "Max age (bars)", minval = 20, group = "⑭ Balanced Price Range")
 
 // SMT Divergence (M_SMT)
-smtOn    = input.bool(false, "⑮ SMT Divergence — enable", group = "⑮ SMT Divergence")
+smtOn    = input.bool(true, "⑮ SMT Divergence — enable", group = "⑮ SMT Divergence")
 smtSym1  = input.symbol("FX:AUDUSD", "Correlated symbol 1", group = "⑮ SMT Divergence",
      tooltip = "Positively-correlated instrument to compare swings against (for AUDCAD: FX:AUDUSD, or inverse-correlated FX:USDCAD). Divergence in HH/LL = SMT.")
 smtSym2  = input.symbol("", "Correlated symbol 2 (optional)", group = "⑮ SMT Divergence")
@@ -221,13 +221,13 @@ smtBearCol= input.color(color.new(#ef5350, 0), "Bear SMT color", group = "⑮ SM
 smtMax   = input.int(4, "Max shown", minval = 1, maxval = 20, group = "⑮ SMT Divergence")
 
 // Displacement (M_DISP)
-dispOn   = input.bool(false, "⑯ Displacement — draw legs", group = "⑯ Displacement",
+dispOn   = input.bool(true, "⑯ Displacement — draw legs", group = "⑯ Displacement",
      tooltip = "Detection always runs (used as a quality gate by ①②⑤⑱). This toggle only controls whether the legs are drawn.")
 dispAtr  = input.float(1.5, "Displacement (x ATR)", minval = 0.5, step = 0.1, group = "⑯ Displacement")
 dispMaxBars = input.int(3, "Max bars per leg", minval = 1, maxval = 8, group = "⑯ Displacement")
 dispBodyRatio = input.float(0.5, "Min body / range ratio", minval = 0.2, maxval = 0.95, step = 0.05, group = "⑯ Displacement")
 dispCol  = input.color(color.new(#ffee58, 40), "Leg color", group = "⑯ Displacement")
-dispMax  = input.int(4, "Max shown", minval = 1, maxval = 20, group = "⑯ Displacement")
+dispMax  = input.int(3, "Max shown", minval = 1, maxval = 20, group = "⑯ Displacement")
 
 // Key Levels & Opens (M_KL)
 klOn     = input.bool(true, "⑰ Key Levels & Opens — enable", group = "⑰ Key Levels & Opens")

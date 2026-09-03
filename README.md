@@ -54,8 +54,9 @@ Elke module heeft: `Enable`, eigen bull/bear-kleur, `Max Shown`, `Mitigated Hand
 
 ### Standaard-preset
 
-Aan by default (rustig startpunt): ① Order Block, ② Breaker, ⑤ FVG, ⑨ Opening Gaps, ⑩ Liquidity, ⑪ Equal H/L, ⑫ Dealing Range, ⑬ Reference Levels, ⑰ Key Levels, ⑱ Market Structure.
-Uit by default (één toggle weg): ③ Mitigation Block, ④ Rejection Block, ⑥ Inversion FVG, ⑦ Liquidity Void, ⑧ Volume Imbalance, ⑭ BPR, ⑮ SMT, ⑯ Displacement-legs.
+**Alle 18 modules staan standaard aan.** Om het overzichtelijk te houden zijn de per-module `Max shown`, de veroudering en de `Lookback` (400) bewust laag gezet, en worden level-labels ver van de prijs verborgen (de lijn blijft). Rustiger maken: `Compact Mode` aan, `Lookback` lager, of modules uitzetten.
+
+Let op: ⑮ SMT vergelijkt standaard met `FX:AUDUSD` — zet dit op een correct gecorreleerd symbool voor jouw instrument (of zet de module uit) anders krijg je zinloze SMT-markeringen.
 
 ### Aanbevolen instellingen (AUDCAD H4 / H1)
 
