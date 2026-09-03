@@ -32,6 +32,7 @@ int MIT_FAREDGE = 0   // zonal: confirmed close beyond the far edge          →
 int MIT_CE      = 1   // zonal: price wicks through the 50% / CE line        → mitigated
 int MIT_SWEEP   = 2   // level: price trades through the level               → swept
 int MIT_FRAC    = 3   // zonal: price retraces `mitFrac` from near→far edge  → mitigated
+int MIT_NONE    = 4   // never auto-mitigates (historical marker); ages out only
 
 // Mitigated-handling codes
 int MH_FADE   = 0
@@ -296,6 +297,17 @@ var array<string> evt = array.new<string>(3, "none")
 // 0 = range top, 1 = range bottom, 2 = leg direction (+1 up / -1 down).
 var array<float> drBox = array.new<float>(3, na)
 
+// recent confirmed pivots (shared by modules ⑩ ⑪ ⑮ ⑱); newest appended last.
+var array<float> phBuf    = array.new<float>()
+var array<int>   phBarBuf = array.new<int>()
+var array<float> plBuf    = array.new<float>()
+var array<int>   plBarBuf = array.new<int>()
+int PIV_BUF = 12   // keep this many recent pivots per side
+
+// market-structure state for module ⑱ (function-writable via .set()).
+// 0 = protected high, 1 = its bar, 2 = protected low, 3 = its bar, 4 = trend(+1/-1/0)
+var array<float> msState = array.new<float>(5, na)
+
 // ═════════════════════════════ CALCULATIONS ═════════════════════════════
 atr   = ta.atr(gAtrLen)
 inLB  = (last_bar_index - bar_index) <= gLookback   // within lookback window
@@ -460,12 +472,19 @@ f_register(PDArray a) =>
     a.strength := 1.0
     a.count    := math.max(1, a.count)
     bool merged = false
-    if not a.isLevel and reg.size() > 0
+    if reg.size() > 0
+        tolLvl = atr * 0.15
         for i = 0 to reg.size() - 1
             e = reg.get(i)
-            if e.mod == a.mod and e.dir == a.dir and e.status != "mitigated" and f_overlap(t, b, e.top, e.bot) >= gMergePct
-                e.top     := math.max(e.top, t)
-                e.bot     := math.min(e.bot, b)
+            bool hit = false
+            if e.mod == a.mod and e.dir == a.dir and e.status != "mitigated"
+                if a.isLevel and e.isLevel
+                    hit := math.abs(e.top - t) <= tolLvl
+                else if not a.isLevel and not e.isLevel
+                    hit := f_overlap(t, b, e.top, e.bot) >= gMergePct
+            if hit
+                e.top     := a.isLevel ? (e.top + t) / 2.0 : math.max(e.top, t)
+                e.bot     := a.isLevel ? (e.bot + b) / 2.0 : math.min(e.bot, b)
                 e.ce      := (e.top + e.bot) / 2.0
                 e.lastBar := bar_index
                 e.count   += 1
@@ -497,7 +516,7 @@ f_lifecycle() =>
                 a.status := "tapped"
             if touched
                 a.lastBar := bar_index
-            if a.status != "mitigated"
+            if a.status != "mitigated" and a.mitRule != MIT_NONE
                 bool mit = false
                 if a.mitRule == MIT_SWEEP
                     mit := a.dir >= 0 ? high > a.top : low < a.bot
@@ -837,10 +856,98 @@ f_detect_rb() =>
     if rng > 0 and lw >= rbWickRatio * rng and lw >= rbMinWickAtr * atr and low <= low[1] and low <= low[2]
         f_register(PDArray.new(mod = M_RB, tag = "RB+", dir = 1, top = math.min(open, close), bot = low,
              bornOff = 0, mitRule = MIT_FAREDGE, mitHandling = mh, maxAge = rbAge))
-f_detect_liq()  => false        // E4 · S4.1 / S4.2
-f_detect_eq()   => false        // E4 · S4.3
-f_detect_disp() => false        // E4 · S4.4 (leg drawing; booleans computed above)
-f_detect_ms()   => false        // E4 · S4.5
+// ─── ⑩ Buyside / Sellside Liquidity  (E4 · S4.1) ─────────────────────
+// Every confirmed swing high is buyside liquidity (old high); every swing
+// low is sellside. Rendered as an extended level; swept when price trades
+// through it. Trendline liquidity (S4.2) is deferred — see PRD §8.
+f_detect_liq() =>
+    int mh = f_mhCode(liqMH)
+    if liqBSL and not na(ph)
+        f_register(PDArray.new(mod = M_LIQ, tag = "BSL", dir = 1, top = ph, bot = ph, isLevel = true,
+             extend = true, bornOff = gPivR, mitRule = MIT_SWEEP, mitHandling = mh, maxAge = liqAge))
+    if liqSSL and not na(pl)
+        f_register(PDArray.new(mod = M_LIQ, tag = "SSL", dir = -1, top = pl, bot = pl, isLevel = true,
+             extend = true, bornOff = gPivR, mitRule = MIT_SWEEP, mitHandling = mh, maxAge = liqAge))
+
+// ─── ⑪ Equal Highs / Lows  (E4 · S4.3) ──────────────────────────────
+// A new swing that lands within tolerance of a recent same-side swing marks
+// a liquidity pool (EQH / EQL). Swept when price trades through the level.
+f_detect_eq() =>
+    tol = eqTolAtr * atr
+    if not na(ph) and phBuf.size() > 0
+        float matchP = na
+        cnt = 1
+        for i = 0 to phBuf.size() - 1
+            if math.abs(phBuf.get(i) - ph) <= tol
+                matchP := na(matchP) ? phBuf.get(i) : matchP
+                cnt += 1
+        if not na(matchP)
+            lvl = (matchP + ph) / 2.0
+            a = PDArray.new(mod = M_EQ, tag = "EQH", dir = 1, top = lvl, bot = lvl, isLevel = true,
+                 extend = true, bornOff = gPivR + 20, mitRule = MIT_SWEEP, mitHandling = f_mhCode(eqMH), maxAge = eqAge)
+            a.count := cnt
+            f_register(a)
+    if not na(pl) and plBuf.size() > 0
+        float matchP = na
+        cnt = 1
+        for i = 0 to plBuf.size() - 1
+            if math.abs(plBuf.get(i) - pl) <= tol
+                matchP := na(matchP) ? plBuf.get(i) : matchP
+                cnt += 1
+        if not na(matchP)
+            lvl = (matchP + pl) / 2.0
+            a = PDArray.new(mod = M_EQ, tag = "EQL", dir = -1, top = lvl, bot = lvl, isLevel = true,
+                 extend = true, bornOff = gPivR + 20, mitRule = MIT_SWEEP, mitHandling = f_mhCode(eqMH), maxAge = eqAge)
+            a.count := cnt
+            f_register(a)
+
+// ─── ⑯ Displacement leg drawing  (E4 · S4.4) ────────────────────────
+// bullDisp / bearDisp are computed globally; this only draws the leg.
+f_detect_disp() =>
+    if bullDisp and not bullDisp[1]
+        f_register(PDArray.new(mod = M_DISP, tag = "DISP+", dir = 1, top = high, bot = low[dispMaxBars - 1],
+             bornOff = dispMaxBars - 1, mitRule = MIT_FRAC, mitFrac = 1.0, mitHandling = MH_REMOVE, maxAge = 80))
+    if bearDisp and not bearDisp[1]
+        f_register(PDArray.new(mod = M_DISP, tag = "DISP-", dir = -1, top = high[dispMaxBars - 1], bot = low,
+             bornOff = dispMaxBars - 1, mitRule = MIT_FRAC, mitFrac = 1.0, mitHandling = MH_REMOVE, maxAge = 80))
+
+// ─── ⑱ Market Structure — BOS / MSS / CHoCH  (E4 · S4.5) ────────────
+f_detect_ms() =>
+    // refresh protected swings from the newest confirmed pivots
+    if not na(ph)
+        msState.set(0, ph)
+        msState.set(1, bar_index - gPivR)
+    if not na(pl)
+        msState.set(2, pl)
+        msState.set(3, bar_index - gPivR)
+    pHigh = msState.get(0)
+    pLow  = msState.get(2)
+    trend = na(msState.get(4)) ? 0 : int(msState.get(4))
+    upBasis = msBasis == "Close" ? close : high
+    dnBasis = msBasis == "Close" ? close : low
+    if not na(pHigh) and upBasis > pHigh
+        isMss = trend < 0
+        if not isMss or not msReqDisp or bullDisp
+            tag = isMss ? "MSS ×" : "BOS ×"
+            a = PDArray.new(mod = M_MS, tag = tag, dir = 1, top = pHigh, bot = pHigh, isLevel = true,
+                 bornOff = bar_index - int(msState.get(1)), mitRule = MIT_NONE, mitHandling = MH_KEEP,
+                 maxAge = 4000, col = isMss ? msMssCol : msBosCol)
+            f_register(a)
+            evt.set(1, (isMss ? "MSS bull @ " : "BOS bull @ ") + str.tostring(pHigh, format.mintick))
+            msState.set(0, na)
+            msState.set(4, 1)
+    if not na(pLow) and dnBasis < pLow
+        isMss = trend > 0
+        if not isMss or not msReqDisp or bearDisp
+            tag = isMss ? "MSS ×" : "BOS ×"
+            a = PDArray.new(mod = M_MS, tag = tag, dir = -1, top = pLow, bot = pLow, isLevel = true,
+                 bornOff = bar_index - int(msState.get(3)), mitRule = MIT_NONE, mitHandling = MH_KEEP,
+                 maxAge = 4000, col = isMss ? msMssCol : msBosCol)
+            f_register(a)
+            evt.set(1, (isMss ? "MSS bear @ " : "BOS bear @ ") + str.tostring(pLow, format.mintick))
+            msState.set(2, na)
+            msState.set(4, -1)
+
 f_detect_dr()   => false        // E5 · S5.1 / S5.2
 f_detect_ref()  => false        // E5 · S5.3
 f_detect_kl()   => false        // E5 · S5.4
@@ -884,6 +991,20 @@ if barstate.isconfirmed and inLB
         f_detect_bpr()
     if dispOn
         f_detect_disp()
+    // shared pivot buffers (used by modules ⑪ ⑮) — maintained AFTER detection so
+    // this bar's own pivot isn't matched against itself.
+    if not na(ph)
+        phBuf.push(ph)
+        phBarBuf.push(bar_index - gPivR)
+        if phBuf.size() > PIV_BUF
+            phBuf.shift()
+            phBarBuf.shift()
+    if not na(pl)
+        plBuf.push(pl)
+        plBarBuf.push(bar_index - gPivR)
+        if plBuf.size() > PIV_BUF
+            plBuf.shift()
+            plBarBuf.shift()
     f_lifecycle()
     f_declutter()
 

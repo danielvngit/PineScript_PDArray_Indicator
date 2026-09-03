@@ -234,7 +234,7 @@ ICT/SMC-traders werken met een grote, samenhangende set **PD arrays** (Premium/D
 
 - **Geen MTF-overlay in v1** (elke module draait op de chart-timeframe). Latere epic E11.
 - **Geen brede confluence-scoring in v1** — alleen BPR (§4.14) als concrete confluence-array. Latere epic E12.
-- **Trendline liquidity** (§4.10) is v1-vereenvoudigd (rechte lijn door 3 punten); geen dynamische her-fit bij nieuwe raakpunten.
+- **Trendline liquidity** (§4.10 / issue #20) is **uitgesteld tot na v1**: het diagonale-lijn-model past niet op de box/level-representatie van de gedeelde core zonder extra `slope`/`anchor`-velden en aangepaste renderer/lifecycle. De horizontale BSL/SSL-liquidity (§4.10) werkt wel. Issue #20 blijft open met label `later`.
 - **SMT** (§4.15): geen automatische correlatie-detectie; gebruiker geeft symbolen op. Max 2 gecorreleerde symbolen in v1.
 - **Market Structure** (§4.18): v1 werkt op één (swing-)niveau; geen aparte internal/LTF-structuurlaag.
 - **Mitigation vs Breaker** (§4.2/§4.3): het onderscheid (wel/geen BOS) hangt af van module 18's structuur-lezing; bij module 18 uit valt de indicator terug op een heuristiek (violated + retest zonder nieuwe swing = mitigation block).
