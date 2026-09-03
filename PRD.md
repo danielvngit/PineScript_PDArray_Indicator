@@ -187,7 +187,7 @@ ICT/SMC-traders werken met een grote, samenhangende set **PD arrays** (Premium/D
 - `Compact Mode`: dunnere randen, geen CE-lijnen, alleen labels bij `strength` boven drempel.
 
 ### 4.22 Inputs / UX (§ Inputs) — Epic E1/E7
-- **Master switch** bovenaan (`Enable All Modules` als noodrem).
+- **Master switch** bovenaan (`Hide ALL modules (override)` als noodrem, default uit).
 - Eén `group` per module, in vaste volgorde, elk met: `Enable`, `Bull Color`, `Bear Color`, `Max Shown`, `Mitigated Handling`, `Extend Right` (waar van toepassing), plus module-specifieke drempels — allemaal met `tooltip`.
 - Globale groepen: `Global / Theme` (kleuren-preset, compact mode, transparantie-schaal, lookback), `Info Panel`, `Alerts`.
 - Standaard-kleuren: bullish = teal-familie, bearish = rood-familie, neutraal (dealing range / referentielevels) = grijs/blauw — met per-module afwijkingen zodat soorten onderscheidbaar blijven.

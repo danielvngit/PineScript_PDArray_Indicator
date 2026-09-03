@@ -46,7 +46,7 @@ Elke module heeft: `Enable`, eigen bull/bear-kleur, `Max Shown`, `Mitigated Hand
 ## Gebruik (Pine / TradingView)
 
 1. Kopieer de inhoud van `PDArray.pine` in de Pine Editor van TradingView en klik **Add to chart** (overlay op de hoofdgrafiek — geen apart paneel).
-2. Zet ongewenste modules uit via hun `① … ⑱ Enable`-toggle. `Enable All Modules` bovenaan is de noodrem.
+2. Zet ongewenste modules uit via hun `① … ⑱ Enable`-toggle. `Hide ALL modules (override)` bovenaan is een globale noodrem (laat uit staan).
 3. Stel per module `Max shown` en `Mitigated handling` (Fade / Remove / Keep) af.
 4. `Global / Theme`: `Compact Mode` voor een rustiger chart, `Color Theme` (Neutral / Vivid / Mono), `Lookback Bars` voor performance.
 5. Webhook-automatisering: zet `Enable JSON Webhook Alerts` aan en maak een TradingView-alert op **"Any alert() function call"**. Payload-schema: zie [`PRD.md` §4.20](PRD.md).
