@@ -52,7 +52,8 @@ gLookback   = input.int(1500, "Lookback Bars", minval = 200, maxval = 5000, grou
      tooltip = "Detection and drawing only run within this many bars of the current bar (performance).")
 gMergePct   = input.float(80.0, "Merge Overlap %", minval = 0, maxval = 100, step = 5, group = "Global / Theme",
      tooltip = "A new array of the same module + direction that overlaps an existing one by more than this % merges into it instead of duplicating.")
-gAtrLen     = input.int(14, "ATR Length", minval = 2, group = "Global / Theme")
+gAtrLen     = input.int(14, "ATR Length", minval = 2, group = "Global / Theme",
+     tooltip = "ATR used everywhere a size threshold is expressed in x ATR (min gap size, wick length, displacement, level-merge tolerance).")
 gPivL       = input.int(5, "Pivot Left Bars", minval = 1, group = "Global / Theme")
 gPivR       = input.int(5, "Pivot Right Bars", minval = 1, group = "Global / Theme",
      tooltip = "Confirmation delay: pivot-based modules only confirm an array this many bars after the swing (non-repaint by design).")
@@ -73,7 +74,8 @@ obOn      = input.bool(true,  "① Order Block — enable", group = "① Order B
 obBull    = input.color(color.new(#26a69a, 0), "Bull color", group = "① Order Block", inline = "obc")
 obBear    = input.color(color.new(#ef5350, 0), "Bear color", group = "① Order Block", inline = "obc")
 obMax     = input.int(6, "Max shown", minval = 1, maxval = 30, group = "① Order Block")
-obMH      = input.string("Fade", "Mitigated handling", options = ["Fade", "Remove", "Keep"], group = "① Order Block")
+obMH      = input.string("Fade", "Mitigated handling", options = ["Fade", "Remove", "Keep"], group = "① Order Block",
+     tooltip = "What happens once an array is mitigated. Fade = show faded for a while then drop. Remove = drop immediately. Keep = keep drawn (dashed). Same meaning for every module.")
 obBodyOnly= input.bool(false, "Use body only (ignore wick)", group = "① Order Block")
 obReqDisp = input.bool(true, "Require displacement", group = "① Order Block",
      tooltip = "Only register an OB when module ⑯ Displacement flags a move out of it.")
@@ -178,14 +180,16 @@ eqAge    = input.int(600, "Max age (bars)", minval = 20, group = "⑪ Equal High
 
 // Dealing Range (M_DR)
 drOn     = input.bool(true, "⑫ Dealing Range — enable", group = "⑫ Dealing Range")
-drSrc    = input.string("Auto swing", "Range source", options = ["Auto swing", "Previous period", "Session"], group = "⑫ Dealing Range")
+drSrc    = input.string("Auto swing", "Range source", options = ["Auto swing", "Previous period", "Session"], group = "⑫ Dealing Range",
+     tooltip = "Auto swing = most recent confirmed swing high <-> swing low. Previous period = prior day/week/month H-L. Session = last completed selected session H-L.")
 drPeriod = input.string("Day", "Previous period", options = ["Day", "Week", "Month"], group = "⑫ Dealing Range")
 drSession= input.string("London", "Session", options = ["Asia", "London", "New York"], group = "⑫ Dealing Range")
 drShowBox= input.bool(true, "Show range box (premium/discount tint)", group = "⑫ Dealing Range")
 drShowOte= input.bool(true, "Show OTE band", group = "⑫ Dealing Range")
 drOteLo  = input.float(0.62, "OTE from", minval = 0.5, maxval = 0.9, step = 0.005, group = "⑫ Dealing Range", inline = "ote")
 drOteHi  = input.float(0.79, "OTE to", minval = 0.5, maxval = 0.95, step = 0.005, group = "⑫ Dealing Range", inline = "ote")
-drFibs   = input.string("0.705, 1.0, -0.5", "Extra fib levels (comma list)", group = "⑫ Dealing Range")
+drFibs   = input.string("0.705, 1.0, -0.5", "Extra fib levels (comma list)", group = "⑫ Dealing Range",
+     tooltip = "Comma-separated retracement/extension ratios of the leg. 0 = far end, 1 = origin, negatives = extensions. E.g. 0.705 is the ICT sweet spot.")
 drPremCol= input.color(color.new(#ef5350, 88), "Premium tint", group = "⑫ Dealing Range", inline = "drc")
 drDiscCol= input.color(color.new(#26a69a, 88), "Discount tint", group = "⑫ Dealing Range", inline = "drc")
 drEqCol  = input.color(color.new(#b0bec5, 0), "Equilibrium / fib color", group = "⑫ Dealing Range")
@@ -208,7 +212,8 @@ bprAge   = input.int(500, "Max age (bars)", minval = 20, group = "⑭ Balanced P
 
 // SMT Divergence (M_SMT)
 smtOn    = input.bool(false, "⑮ SMT Divergence — enable", group = "⑮ SMT Divergence")
-smtSym1  = input.symbol("FX:AUDUSD", "Correlated symbol 1", group = "⑮ SMT Divergence")
+smtSym1  = input.symbol("FX:AUDUSD", "Correlated symbol 1", group = "⑮ SMT Divergence",
+     tooltip = "Positively-correlated instrument to compare swings against (for AUDCAD: FX:AUDUSD, or inverse-correlated FX:USDCAD). Divergence in HH/LL = SMT.")
 smtSym2  = input.symbol("", "Correlated symbol 2 (optional)", group = "⑮ SMT Divergence")
 smtLine  = input.bool(true, "Draw connector line", group = "⑮ SMT Divergence")
 smtBullCol= input.color(color.new(#26a69a, 0), "Bull SMT color", group = "⑮ SMT Divergence", inline = "smc")
@@ -261,6 +266,7 @@ type PDArray
     string status       = "formed"   // formed | tapped | mitigated
     int    lastBar      = 0
     int    mitBar       = 0
+    int    tapBar       = 0          // bar of the most recent (debounced) tap
     float  strength     = 1.0
     int    count        = 1          // touches / member points (for label)
     bool   isLevel      = false      // render as line(s) instead of a box
@@ -319,6 +325,7 @@ atr   = ta.atr(gAtrLen)
 inLB  = (last_bar_index - bar_index) <= gLookback   // within lookback window
 ph    = ta.pivothigh(gPivL, gPivR)
 pl    = ta.pivotlow(gPivL, gPivR)
+volOk = ta.cum(nz(volume)) > 0                      // is volume data available?
 
 // Hoisted here so history-dependent calls run every bar (never inside the
 // conditionally-invoked module detectors — Pine requirement).
@@ -484,7 +491,15 @@ f_color(PDArray a) =>
         M_KL   => klOpenCol
         M_MS   => bull ? msBosCol  : msMssCol
         => color.gray
-    na(a.col) ? c : a.col
+    // explicit per-array override always wins; otherwise the theme preset
+    // re-tints the per-module default colors.
+    color themed = c
+    if na(a.col)
+        if gTheme == "Mono"
+            themed := a.dir > 0 ? color.new(#5b7d6e, 0) : a.dir < 0 ? color.new(#9a5b5b, 0) : color.new(#8a8a8a, 0)
+        else if gTheme == "Vivid"
+            themed := a.dir > 0 ? color.new(#00e676, 0) : a.dir < 0 ? color.new(#ff1744, 0) : color.new(#448aff, 0)
+    na(a.col) ? themed : a.col
 
 f_overlap(float aTop, float aBot, float bTop, float bBot) =>
     lo    = math.max(aBot, bBot)
@@ -583,6 +598,9 @@ f_lifecycle() =>
             bool touched = high >= a.bot and low <= a.top
             if a.status == "formed" and touched
                 a.status := "tapped"
+                a.tapBar := bar_index
+            else if touched and a.status == "tapped" and not a.alertedTap
+                a.tapBar := bar_index
             if touched
                 a.lastBar := bar_index
             if a.status != "mitigated" and a.mitRule != MIT_NONE
@@ -1188,6 +1206,50 @@ if barstate.isconfirmed and inLB
     f_lifecycle()
     f_declutter()
 
+// ═════════════════════════════ ALERT EVAL (E7 · S7.2) ═════════════════════════════
+// Conditions are computed in global scope (functions may not call alert()).
+bool alFormed = false
+bool alTapped = false
+bool alMitig  = false
+bool alSwept  = false
+bool alStruct = false
+bool alSmt    = false
+bool alOte    = false
+if barstate.isconfirmed and reg.size() > 0
+    for i = 0 to reg.size() - 1
+        a = reg.get(i)
+        bool isLevelMod = a.mod == M_LIQ or a.mod == M_REF or a.mod == M_EQ or a.mod == M_KL
+        if a.regBar == bar_index
+            alFormed := true
+            if a.mod == M_MS
+                alStruct := true
+            if a.mod == M_SMT
+                alSmt := true
+            if alJson
+                alert(f_payload("formed", a), alert.freq_once_per_bar_close)
+        if a.tapBar == bar_index and not a.alertedTap
+            a.alertedTap := true
+            alTapped := true
+            if alJson
+                alert(f_payload("tapped", a), alert.freq_once_per_bar_close)
+        if a.status == "mitigated" and a.mitBar == bar_index
+            alMitig := true
+            if isLevelMod
+                alSwept := true
+            if alJson
+                alert(f_payload(isLevelMod ? "swept" : "mitigated", a), alert.freq_once_per_bar_close)
+// price entered discount + OTE (module ⑫)
+_drT = drBox.get(0)
+_drB = drBox.get(1)
+if barstate.isconfirmed and not na(_drT) and not na(_drB) and _drT > _drB
+    _eq  = (_drT + _drB) / 2.0
+    _d   = na(drBox.get(2)) ? 1 : int(drBox.get(2))
+    _oA  = _d >= 0 ? _drT - drOteHi * (_drT - _drB) : _drB + drOteHi * (_drT - _drB)
+    _oB  = _d >= 0 ? _drT - drOteLo * (_drT - _drB) : _drB + drOteLo * (_drT - _drB)
+    _lo  = math.min(_oA, _oB)
+    _hi  = math.max(_oA, _oB)
+    alOte := low <= _hi and high >= _lo and (_d >= 0 ? close < _eq : close > _eq)
+
 f_render()
 
 // ═══════════════ ⑫ DEALING RANGE RENDER (fixed handle set, last bar) ═══════════════
@@ -1282,9 +1344,12 @@ if ipShow and barstate.islast
         "Bottom Left"  => position.bottom_left
         => position.top_right
     if na(ip)
-        ip := table.new(pos, 2, 8, border_width = 1, frame_color = color.new(color.gray, 50), frame_width = 1)
+        ip := table.new(pos, 2, 9, border_width = 1, frame_color = color.new(color.gray, 50), frame_width = 1)
     else
         table.set_position(ip, pos)
+    int modsOn = 0
+    for m = 1 to 18
+        modsOn += f_modOn(m) ? 1 : 0
     float  nBull  = na
     string nBullT = "—"
     float  nBear  = na
@@ -1321,13 +1386,14 @@ if ipShow and barstate.islast
     table.cell(ip, 1, 6, evt.get(2), text_color = color.white, text_size = size.small)
     table.cell(ip, 0, 7, "Displacement", text_color = color.silver, text_size = size.small)
     table.cell(ip, 1, 7, bullDisp ? "▲ bull" : bearDisp ? "▼ bear" : "—", text_color = color.white, text_size = size.small)
+    table.cell(ip, 0, 8, "Modules / volume", text_color = color.silver, text_size = size.small)
+    table.cell(ip, 1, 8, str.tostring(modsOn) + "/18 · vol " + (volOk ? "ok" : "n/a"), text_color = color.white, text_size = size.small)
 
-// ═════════════════════════════ STATIC ALERTS ═════════════════════════════
-// Real per-module conditions are wired in E7 · S7.2; these keep the alert names
-// registered so users can pre-create alerts.
-alertcondition(false, "PD Array — formed",       "A PD array formed")
-alertcondition(false, "PD Array — tapped",       "Price tapped a PD array")
-alertcondition(false, "PD Array — mitigated",    "A PD array was mitigated")
-alertcondition(false, "Liquidity swept",         "Buyside/Sellside liquidity was swept")
-alertcondition(false, "Market structure shift",  "BOS / MSS / CHoCH")
-alertcondition(false, "SMT divergence",          "SMT divergence detected")
+// ═════════════════════════════ STATIC ALERTS (E7 · S7.2) ═════════════════════════════
+alertcondition(alFormed, "PD Array — formed",       "A PD array formed")
+alertcondition(alTapped, "PD Array — tapped",       "Price tapped a PD array")
+alertcondition(alMitig,  "PD Array — mitigated",    "A PD array was mitigated")
+alertcondition(alSwept,  "Liquidity swept",         "Buyside/Sellside liquidity / reference level was swept")
+alertcondition(alStruct, "Market structure shift",  "BOS / MSS / CHoCH")
+alertcondition(alSmt,    "SMT divergence",          "SMT divergence detected")
+alertcondition(alOte,    "Discount + OTE entry",    "Price entered the discount OTE zone of the dealing range")
