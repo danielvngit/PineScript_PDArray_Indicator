@@ -48,7 +48,7 @@ gCompact    = input.bool(false, "Compact Mode", group = "Global / Theme",
      tooltip = "Thinner borders, no CE / midlines, labels only for above-average-strength arrays. Calms the chart when many modules are on.")
 gTranspBase = input.int(80, "Base Transparency", minval = 0, maxval = 95, group = "Global / Theme",
      tooltip = "Transparency of a fresh array. Stronger / fresher arrays render a little more opaque than this.")
-gLookback   = input.int(1500, "Lookback Bars", minval = 200, maxval = 5000, group = "Global / Theme",
+gLookback   = input.int(600, "Lookback Bars", minval = 200, maxval = 5000, group = "Global / Theme",
      tooltip = "Detection and drawing only run within this many bars of the current bar (performance).")
 gMergePct   = input.float(80.0, "Merge Overlap %", minval = 0, maxval = 100, step = 5, group = "Global / Theme",
      tooltip = "A new array of the same module + direction that overlaps an existing one by more than this % merges into it instead of duplicating.")
@@ -60,7 +60,7 @@ gPivR       = input.int(5, "Pivot Right Bars", minval = 1, group = "Global / The
 
 // Info panel
 ipShow = input.bool(true, "Show Info Panel", group = "Info Panel")
-ipPos  = input.string("Top Right", "Panel Position", options = ["Top Right", "Top Left", "Bottom Right", "Bottom Left"], group = "Info Panel")
+ipPos  = input.string("Bottom Right", "Panel Position", options = ["Top Right", "Top Left", "Bottom Right", "Bottom Left"], group = "Info Panel")
 
 // Alerts
 alJson     = input.bool(false, "Enable JSON Webhook Alerts", group = "Alerts",
@@ -73,7 +73,7 @@ alResetAtr = input.float(1.0, "Alert Reset (x ATR)", minval = 0.1, step = 0.1, g
 obOn      = input.bool(true,  "① Order Block — enable", group = "① Order Block")
 obBull    = input.color(color.new(#26a69a, 0), "Bull color", group = "① Order Block", inline = "obc")
 obBear    = input.color(color.new(#ef5350, 0), "Bear color", group = "① Order Block", inline = "obc")
-obMax     = input.int(6, "Max shown", minval = 1, maxval = 30, group = "① Order Block")
+obMax     = input.int(4, "Max shown", minval = 1, maxval = 30, group = "① Order Block")
 obMH      = input.string("Fade", "Mitigated handling", options = ["Fade", "Remove", "Keep"], group = "① Order Block",
      tooltip = "What happens once an array is mitigated. Fade = show faded for a while then drop. Remove = drop immediately. Keep = keep drawn (dashed). Same meaning for every module.")
 obBodyOnly= input.bool(false, "Use body only (ignore wick)", group = "① Order Block")
@@ -85,12 +85,12 @@ obAge     = input.int(500, "Max age (bars)", minval = 20, group = "① Order Blo
 brkOn   = input.bool(true, "② Breaker Block — enable", group = "② Breaker Block")
 brkBull = input.color(color.new(#00897b, 0), "Bull color", group = "② Breaker Block", inline = "brc")
 brkBear = input.color(color.new(#e53935, 0), "Bear color", group = "② Breaker Block", inline = "brc")
-brkMax  = input.int(4, "Max shown", minval = 1, maxval = 20, group = "② Breaker Block")
+brkMax  = input.int(3, "Max shown", minval = 1, maxval = 20, group = "② Breaker Block")
 brkMH   = input.string("Fade", "Mitigated handling", options = ["Fade", "Remove", "Keep"], group = "② Breaker Block")
 brkAge  = input.int(500, "Max age (bars)", minval = 20, group = "② Breaker Block")
 
 // Mitigation Block (M_MB)
-mbOn   = input.bool(true, "③ Mitigation Block — enable", group = "③ Mitigation Block")
+mbOn   = input.bool(false, "③ Mitigation Block — enable", group = "③ Mitigation Block")
 mbBull = input.color(color.new(#66bb6a, 0), "Bull color", group = "③ Mitigation Block", inline = "mbc")
 mbBear = input.color(color.new(#ffa726, 0), "Bear color", group = "③ Mitigation Block", inline = "mbc")
 mbMax  = input.int(4, "Max shown", minval = 1, maxval = 20, group = "③ Mitigation Block")
@@ -98,12 +98,12 @@ mbMH   = input.string("Fade", "Mitigated handling", options = ["Fade", "Remove",
 mbAge  = input.int(400, "Max age (bars)", minval = 20, group = "③ Mitigation Block")
 
 // Rejection Block (M_RB)
-rbOn    = input.bool(true, "④ Rejection Block — enable", group = "④ Rejection Block")
+rbOn    = input.bool(false, "④ Rejection Block — enable", group = "④ Rejection Block")
 rbBull  = input.color(color.new(#4db6ac, 0), "Bull color", group = "④ Rejection Block", inline = "rbc")
 rbBear  = input.color(color.new(#ff7043, 0), "Bear color", group = "④ Rejection Block", inline = "rbc")
 rbMax   = input.int(5, "Max shown", minval = 1, maxval = 20, group = "④ Rejection Block")
 rbMH    = input.string("Fade", "Mitigated handling", options = ["Fade", "Remove", "Keep"], group = "④ Rejection Block")
-rbWickRatio = input.float(0.55, "Min wick / range ratio", minval = 0.3, maxval = 0.95, step = 0.05, group = "④ Rejection Block")
+rbWickRatio = input.float(0.65, "Min wick / range ratio", minval = 0.3, maxval = 0.95, step = 0.05, group = "④ Rejection Block")
 rbMinWickAtr= input.float(0.6, "Min wick (x ATR)", minval = 0.1, step = 0.1, group = "④ Rejection Block")
 rbAge   = input.int(400, "Max age (bars)", minval = 20, group = "④ Rejection Block")
 
@@ -111,17 +111,17 @@ rbAge   = input.int(400, "Max age (bars)", minval = 20, group = "④ Rejection B
 fvgOn    = input.bool(true, "⑤ Fair Value Gap — enable", group = "⑤ Fair Value Gap")
 fvgBull  = input.color(color.new(#42a5f5, 0), "Bull color (BISI)", group = "⑤ Fair Value Gap", inline = "fvc")
 fvgBear  = input.color(color.new(#ab47bc, 0), "Bear color (SIBI)", group = "⑤ Fair Value Gap", inline = "fvc")
-fvgMax   = input.int(8, "Max shown", minval = 1, maxval = 40, group = "⑤ Fair Value Gap")
+fvgMax   = input.int(5, "Max shown", minval = 1, maxval = 40, group = "⑤ Fair Value Gap")
 fvgMH    = input.string("Fade", "Mitigated handling", options = ["Fade", "Remove", "Keep"], group = "⑤ Fair Value Gap",
      tooltip = "Fade/Keep leaves a filled FVG on the chart long enough for module ⑥ to invert it (IFVG). Remove drops it immediately.")
-fvgMinAtr= input.float(0.10, "Min gap size (x ATR)", minval = 0.0, step = 0.05, group = "⑤ Fair Value Gap")
+fvgMinAtr= input.float(0.15, "Min gap size (x ATR)", minval = 0.0, step = 0.05, group = "⑤ Fair Value Gap")
 fvgReqDisp = input.bool(true, "Require displacement", group = "⑤ Fair Value Gap")
 fvgShowCe= input.bool(true, "Show CE (50%) line", group = "⑤ Fair Value Gap")
 fvgFill  = input.string("CE (50%)", "Fill rule", options = ["CE (50%)", "Full fill"], group = "⑤ Fair Value Gap")
 fvgAge   = input.int(500, "Max age (bars)", minval = 20, group = "⑤ Fair Value Gap")
 
 // Inversion FVG (M_IFVG)
-ifvgOn   = input.bool(true, "⑥ Inversion FVG — enable", group = "⑥ Inversion FVG")
+ifvgOn   = input.bool(false, "⑥ Inversion FVG — enable", group = "⑥ Inversion FVG")
 ifvgBull = input.color(color.new(#1e88e5, 0), "Bull color", group = "⑥ Inversion FVG", inline = "ifc")
 ifvgBear = input.color(color.new(#8e24aa, 0), "Bear color", group = "⑥ Inversion FVG", inline = "ifc")
 ifvgMax  = input.int(6, "Max shown", minval = 1, maxval = 30, group = "⑥ Inversion FVG")
@@ -129,7 +129,7 @@ ifvgMH   = input.string("Fade", "Mitigated handling", options = ["Fade", "Remove
 ifvgAge  = input.int(500, "Max age (bars)", minval = 20, group = "⑥ Inversion FVG")
 
 // Liquidity Void (M_LV)
-lvOn     = input.bool(true, "⑦ Liquidity Void — enable", group = "⑦ Liquidity Void")
+lvOn     = input.bool(false, "⑦ Liquidity Void — enable", group = "⑦ Liquidity Void")
 lvBull   = input.color(color.new(#78909c, 0), "Bull color", group = "⑦ Liquidity Void", inline = "lvc")
 lvBear   = input.color(color.new(#8d6e63, 0), "Bear color", group = "⑦ Liquidity Void", inline = "lvc")
 lvMax    = input.int(4, "Max shown", minval = 1, maxval = 20, group = "⑦ Liquidity Void")
@@ -140,7 +140,7 @@ lvFillPct= input.float(50.0, "Fill % for mitigation", minval = 10, maxval = 100,
 lvAge    = input.int(500, "Max age (bars)", minval = 20, group = "⑦ Liquidity Void")
 
 // Volume Imbalance (M_VI)
-viOn   = input.bool(true, "⑧ Volume Imbalance — enable", group = "⑧ Volume Imbalance")
+viOn   = input.bool(false, "⑧ Volume Imbalance — enable", group = "⑧ Volume Imbalance")
 viBull = input.color(color.new(#26c6da, 0), "Bull color", group = "⑧ Volume Imbalance", inline = "vic")
 viBear = input.color(color.new(#ec407a, 0), "Bear color", group = "⑧ Volume Imbalance", inline = "vic")
 viMax  = input.int(6, "Max shown", minval = 1, maxval = 30, group = "⑧ Volume Imbalance")
@@ -165,7 +165,7 @@ liqSSL   = input.bool(true, "Sellside (old lows)", group = "⑩ Liquidity (BSL/S
 liqTrend = input.bool(false, "Trendline liquidity (simplified)", group = "⑩ Liquidity (BSL/SSL)")
 liqBuyCol= input.color(color.new(#26a69a, 0), "BSL color", group = "⑩ Liquidity (BSL/SSL)", inline = "lqc")
 liqSellCol=input.color(color.new(#ef5350, 0), "SSL color", group = "⑩ Liquidity (BSL/SSL)", inline = "lqc")
-liqMax   = input.int(6, "Max shown per side", minval = 1, maxval = 20, group = "⑩ Liquidity (BSL/SSL)")
+liqMax   = input.int(4, "Max shown per side", minval = 1, maxval = 20, group = "⑩ Liquidity (BSL/SSL)")
 liqMH    = input.string("Remove", "Swept handling", options = ["Fade", "Remove", "Keep"], group = "⑩ Liquidity (BSL/SSL)")
 liqAge   = input.int(800, "Max age (bars)", minval = 20, group = "⑩ Liquidity (BSL/SSL)")
 
@@ -174,7 +174,7 @@ eqOn     = input.bool(true, "⑪ Equal Highs/Lows — enable", group = "⑪ Equa
 eqHighCol= input.color(color.new(#ef5350, 0), "EQH color", group = "⑪ Equal Highs/Lows", inline = "eqc")
 eqLowCol = input.color(color.new(#26a69a, 0), "EQL color", group = "⑪ Equal Highs/Lows", inline = "eqc")
 eqTolAtr = input.float(0.10, "Equal tolerance (x ATR)", minval = 0.02, step = 0.02, group = "⑪ Equal Highs/Lows")
-eqMax    = input.int(5, "Max shown", minval = 1, maxval = 20, group = "⑪ Equal Highs/Lows")
+eqMax    = input.int(4, "Max shown", minval = 1, maxval = 20, group = "⑪ Equal Highs/Lows")
 eqMH     = input.string("Remove", "Swept handling", options = ["Fade", "Remove", "Keep"], group = "⑪ Equal Highs/Lows")
 eqAge    = input.int(600, "Max age (bars)", minval = 20, group = "⑪ Equal Highs/Lows")
 
@@ -203,7 +203,7 @@ refCol   = input.color(color.new(#90a4ae, 0), "Level color", group = "⑬ Refere
 refMH    = input.string("Keep", "Swept handling", options = ["Fade", "Remove", "Keep"], group = "⑬ Reference Levels")
 
 // Balanced Price Range (M_BPR)
-bprOn    = input.bool(true, "⑭ Balanced Price Range — enable", group = "⑭ Balanced Price Range")
+bprOn    = input.bool(false, "⑭ Balanced Price Range — enable", group = "⑭ Balanced Price Range")
 bprCol   = input.color(color.new(#ffca28, 0), "BPR color", group = "⑭ Balanced Price Range")
 bprMaxApart = input.int(10, "Max bars apart (bull vs bear FVG)", minval = 1, maxval = 50, group = "⑭ Balanced Price Range")
 bprMax   = input.int(4, "Max shown", minval = 1, maxval = 20, group = "⑭ Balanced Price Range")
@@ -719,16 +719,20 @@ f_render() =>
                 label.delete(a.lb)
                 a.lb := na
             if wantLabel
-                ly     = a.isLevel ? a.top : (a.dir >= 0 ? a.bot : a.top)
-                lstyle = a.dir >= 0 ? label.style_label_upper_left : label.style_label_lower_left
+                // levels: small bubble at the right edge.  zonal arrays: plain
+                // text pinned to the origin (bornBar) so labels spread along
+                // time instead of stacking on the current bar.
+                lx     = a.isLevel ? rightX : a.bornBar
+                ly     = a.top
+                lstyle = a.isLevel ? label.style_label_left : label.style_none
                 txt    = a.tag + ((a.mod == M_EQ or a.mod == M_LIQ) and a.count > 1 ? " x" + str.tostring(a.count) : "")
                 if na(a.lb)
-                    a.lb := label.new(rightX, ly, txt, xloc = xloc.bar_index, size = size.tiny)
-                label.set_xy(a.lb, rightX, ly)
+                    a.lb := label.new(lx, ly, txt, xloc = xloc.bar_index, size = size.tiny)
+                label.set_xy(a.lb, lx, ly)
                 label.set_text(a.lb, txt)
                 label.set_style(a.lb, lstyle)
-                label.set_color(a.lb, color.new(c, 20))
-                label.set_textcolor(a.lb, color.new(color.white, 0))
+                label.set_color(a.lb, a.isLevel ? color.new(c, 20) : color.new(color.white, 100))
+                label.set_textcolor(a.lb, a.isLevel ? color.new(color.white, 0) : color.new(c, 0))
 
 // ═════════════════════════════ MODULE DETECTORS ═════════════════════════════
 // Each runs once per confirmed bar (from MAIN) when its module is enabled.

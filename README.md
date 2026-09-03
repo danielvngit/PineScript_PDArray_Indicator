@@ -52,16 +52,23 @@ Elke module heeft: `Enable`, eigen bull/bear-kleur, `Max Shown`, `Mitigated Hand
 5. Webhook-automatisering: zet `Enable JSON Webhook Alerts` aan en maak een TradingView-alert op **"Any alert() function call"**. Payload-schema: zie [`PRD.md` §4.20](PRD.md).
 6. Losse alerts (zonder webhook): maak een alert op een van de zeven `alertcondition`-namen (PD Array — formed / tapped / mitigated, Liquidity swept, Market structure shift, SMT divergence, Discount + OTE entry).
 
-### Aanbevolen startinstellingen (AUDCAD H4 / H1)
+### Standaard-preset
+
+Aan by default (rustig startpunt): ① Order Block, ② Breaker, ⑤ FVG, ⑨ Opening Gaps, ⑩ Liquidity, ⑪ Equal H/L, ⑫ Dealing Range, ⑬ Reference Levels, ⑰ Key Levels, ⑱ Market Structure.
+Uit by default (één toggle weg): ③ Mitigation Block, ④ Rejection Block, ⑥ Inversion FVG, ⑦ Liquidity Void, ⑧ Volume Imbalance, ⑭ BPR, ⑮ SMT, ⑯ Displacement-legs.
+
+### Aanbevolen instellingen (AUDCAD H4 / H1)
 
 | Instelling | H4 | H1 |
 |---|---|---|
 | Pivot Left / Right Bars | 5 / 5 | 6 / 6 |
 | ATR Length | 14 | 14 |
-| Lookback Bars | 1500 | 2000 |
-| FVG min gap (x ATR) | 0.10 | 0.15 |
+| Lookback Bars | 600 | 800 |
+| FVG min gap (x ATR) | 0.15 | 0.20 |
 | Displacement (x ATR) | 1.5 | 1.3 |
 | SMT symbol 1 / 2 | `FX:AUDUSD` / `FX:USDCAD` | idem |
+
+Meer modules aan of hogere `Max shown` maakt de chart drukker; `Compact Mode` en een lagere `Lookback` maken hem rustiger.
 
 ### Voorbeeld-presets
 
