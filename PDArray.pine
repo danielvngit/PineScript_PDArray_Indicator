@@ -28,9 +28,10 @@ int M_KL   = 17  // Key Levels & Opens
 int M_MS   = 18  // Market Structure (BOS / MSS / CHoCH)
 
 // Mitigation rule codes (per-array, set at registration)
-int MIT_FAREDGE = 0   // zonal: confirmed close beyond the far edge  → mitigated
-int MIT_CE      = 1   // zonal: price reaches the 50% / CE line       → mitigated
-int MIT_SWEEP   = 2   // level: price trades through the level        → swept
+int MIT_FAREDGE = 0   // zonal: confirmed close beyond the far edge          → mitigated
+int MIT_CE      = 1   // zonal: price wicks through the 50% / CE line        → mitigated
+int MIT_SWEEP   = 2   // level: price trades through the level               → swept
+int MIT_FRAC    = 3   // zonal: price retraces `mitFrac` from near→far edge  → mitigated
 
 // Mitigated-handling codes
 int MH_FADE   = 0
@@ -108,7 +109,8 @@ fvgOn    = input.bool(true, "⑤ Fair Value Gap — enable", group = "⑤ Fair V
 fvgBull  = input.color(color.new(#42a5f5, 0), "Bull color (BISI)", group = "⑤ Fair Value Gap", inline = "fvc")
 fvgBear  = input.color(color.new(#ab47bc, 0), "Bear color (SIBI)", group = "⑤ Fair Value Gap", inline = "fvc")
 fvgMax   = input.int(8, "Max shown", minval = 1, maxval = 40, group = "⑤ Fair Value Gap")
-fvgMH    = input.string("Remove", "Mitigated handling", options = ["Fade", "Remove", "Keep"], group = "⑤ Fair Value Gap")
+fvgMH    = input.string("Fade", "Mitigated handling", options = ["Fade", "Remove", "Keep"], group = "⑤ Fair Value Gap",
+     tooltip = "Fade/Keep leaves a filled FVG on the chart long enough for module ⑥ to invert it (IFVG). Remove drops it immediately.")
 fvgMinAtr= input.float(0.10, "Min gap size (x ATR)", minval = 0.0, step = 0.05, group = "⑤ Fair Value Gap")
 fvgReqDisp = input.bool(true, "Require displacement", group = "⑤ Fair Value Gap")
 fvgShowCe= input.bool(true, "Show CE (50%) line", group = "⑤ Fair Value Gap")
@@ -254,6 +256,7 @@ type PDArray
     float  ce           = na
     int    bornBar      = 0
     int    bornTime     = 0
+    int    regBar       = 0          // bar_index the array was first registered
     string status       = "formed"   // formed | tapped | mitigated
     int    lastBar      = 0
     int    mitBar       = 0
@@ -263,8 +266,10 @@ type PDArray
     bool   twoLine      = false      // isLevel + draw both top & bot lines
     bool   extend       = false
     int    mitRule      = 0          // MIT_*
+    float  mitFrac      = 1.0        // MIT_FRAC: retrace fraction near→far edge
     int    mitHandling  = 0          // MH_*
     int    maxAge       = 500
+    int    bornOff      = 0          // bars back from current bar the array originates
     bool   showCe       = false
     bool   shown        = true       // set by f_declutter(); read by f_render()
     color  col          = na         // explicit color override; else derived
@@ -296,6 +301,13 @@ atr   = ta.atr(gAtrLen)
 inLB  = (last_bar_index - bar_index) <= gLookback   // within lookback window
 ph    = ta.pivothigh(gPivL, gPivR)
 pl    = ta.pivotlow(gPivL, gPivR)
+
+// Hoisted here so history-dependent calls run every bar (never inside the
+// conditionally-invoked module detectors — Pine requirement).
+_dayChg  = ta.change(time("D"))
+_wkChg   = ta.change(time("W"))
+newDayG  = not timeframe.isdwm and _dayChg != 0
+newWeekG = not timeframe.isdwm and _wkChg != 0
 
 // Displacement (module ⑯) — detection always runs; it is a shared quality gate
 // consumed by modules ①②⑤⑱. The toggle only controls whether legs are drawn.
@@ -431,16 +443,27 @@ f_payload(string event, PDArray a) =>
      ',"price":'       + str.tostring(close)                     +
      ',"time":'        + str.tostring(time)                      + '}'
 
-// Register a new array — or merge into an overlapping same-module/same-dir one.
-f_register(int m, string tag, int dir, float top, float bot, bool isLevel, bool twoLine,
-     bool extend, int mitRule, int mitHandling, int maxAge, bool showCe, color colOv) =>
-    float t = math.max(top, bot)
-    float b = math.min(top, bot)
+// Register a prebuilt array — or merge it into an overlapping same-module/same-dir one.
+// Caller fills mod/tag/dir/top/bot plus any of: isLevel, twoLine, extend, mitRule,
+// mitFrac, mitHandling, maxAge, bornOff, showCe, col. The rest is finalized here.
+f_register(PDArray a) =>
+    float t = math.max(a.top, a.bot)
+    float b = math.min(a.top, a.bot)
+    a.top      := t
+    a.bot      := b
+    a.ce       := (t + b) / 2.0
+    a.bornBar  := bar_index - math.max(0, math.min(a.bornOff, gLookback))
+    a.bornTime := time
+    a.regBar   := bar_index
+    a.status   := "formed"
+    a.lastBar  := bar_index
+    a.strength := 1.0
+    a.count    := math.max(1, a.count)
     bool merged = false
-    if not isLevel and reg.size() > 0
+    if not a.isLevel and reg.size() > 0
         for i = 0 to reg.size() - 1
             e = reg.get(i)
-            if e.mod == m and e.dir == dir and e.status != "mitigated" and f_overlap(t, b, e.top, e.bot) >= gMergePct
+            if e.mod == a.mod and e.dir == a.dir and e.status != "mitigated" and f_overlap(t, b, e.top, e.bot) >= gMergePct
                 e.top     := math.max(e.top, t)
                 e.bot     := math.min(e.bot, b)
                 e.ce      := (e.top + e.bot) / 2.0
@@ -450,10 +473,6 @@ f_register(int m, string tag, int dir, float top, float bot, bool isLevel, bool 
                 merged := true
                 break
     if not merged
-        PDArray a = PDArray.new(mod = m, tag = tag, dir = dir, top = t, bot = b, ce = (t + b) / 2.0,
-             bornBar = bar_index, bornTime = time, status = "formed", lastBar = bar_index,
-             strength = 1.0, count = 1, isLevel = isLevel, twoLine = twoLine, extend = extend,
-             mitRule = mitRule, mitHandling = mitHandling, maxAge = maxAge, showCe = showCe, col = colOv)
         reg.push(a)
         if reg.size() > HARD_CAP
             wi = 0
@@ -483,9 +502,12 @@ f_lifecycle() =>
                 if a.mitRule == MIT_SWEEP
                     mit := a.dir >= 0 ? high > a.top : low < a.bot
                     if mit
-                        evt.set(0, a.tag + " @ " + str.tostring(a.dir >= 0 ? a.top : a.bot, format.mintick) + " (" + str.tostring(bar_index) + ")")
+                        evt.set(0, a.tag + " @ " + str.tostring(a.dir >= 0 ? a.top : a.bot, format.mintick) + " (bar " + str.tostring(bar_index) + ")")
                 else if a.mitRule == MIT_CE
                     mit := low <= a.ce and high >= a.ce
+                else if a.mitRule == MIT_FRAC
+                    lvl = a.dir >= 0 ? a.top - a.mitFrac * (a.top - a.bot) : a.bot + a.mitFrac * (a.top - a.bot)
+                    mit := a.dir >= 0 ? low <= lvl : high >= lvl
                 else
                     mit := a.dir >= 0 ? close < a.bot : close > a.top
                 if mit
@@ -603,13 +625,122 @@ f_render() =>
                 label.delete(a.lb)
                 a.lb := na
 
-// ═════════════════════════════ MODULE DETECTORS (stubs — filled per epic) ═════════════════════════════
-f_detect_fvg()  => false        // E2 · S2.1
-f_detect_ifvg() => false        // E2 · S2.2
-f_detect_lv()   => false        // E2 · S2.3
-f_detect_vi()   => false        // E2 · S2.4
-f_detect_og()   => false        // E2 · S2.5
-f_detect_bpr()  => false        // E2 · S2.6
+// ═════════════════════════════ MODULE DETECTORS ═════════════════════════════
+// Each runs once per confirmed bar (from MAIN) when its module is enabled.
+
+// ─── ⑤ Fair Value Gap + CE  (E2 · S2.1) ───────────────────────────────
+// BISI: low[0] > high[2].  SIBI: high[0] < low[2].  Zone = the 3-candle gap.
+f_detect_fvg() =>
+    float frac = fvgFill == "CE (50%)" ? 0.5 : 1.0
+    int   mh   = f_mhCode(fvgMH)
+    // bullish (BISI)
+    if low > high[2]
+        gap = low - high[2]
+        if gap >= fvgMinAtr * atr and (not fvgReqDisp or bullDisp)
+            f_register(PDArray.new(mod = M_FVG, tag = "FVG+", dir = 1, top = low, bot = high[2],
+                 bornOff = 2, mitRule = MIT_FRAC, mitFrac = frac, mitHandling = mh, maxAge = fvgAge,
+                 showCe = fvgShowCe))
+    // bearish (SIBI)
+    if high < low[2]
+        gap = low[2] - high
+        if gap >= fvgMinAtr * atr and (not fvgReqDisp or bearDisp)
+            f_register(PDArray.new(mod = M_FVG, tag = "FVG-", dir = -1, top = low[2], bot = high,
+                 bornOff = 2, mitRule = MIT_FRAC, mitFrac = frac, mitHandling = mh, maxAge = fvgAge,
+                 showCe = fvgShowCe))
+
+// ─── ⑥ Inversion FVG  (E2 · S2.2) ─────────────────────────────────────
+// An existing FVG that price closes fully through flips polarity → IFVG.
+f_detect_ifvg() =>
+    if reg.size() > 0
+        for i = 0 to reg.size() - 1
+            e = reg.get(i)
+            if e.mod == M_FVG and e.flag == 0
+                bool through = e.dir >= 0 ? close < e.bot : close > e.top
+                if through
+                    e.flag   := 1
+                    e.status := "mitigated"
+                    e.mitBar := bar_index
+                    ndir = e.dir >= 0 ? -1 : 1
+                    f_register(PDArray.new(mod = M_IFVG, tag = ndir > 0 ? "IFVG+" : "IFVG-", dir = ndir,
+                         top = e.top, bot = e.bot, bornOff = bar_index - e.bornBar, mitRule = MIT_FRAC,
+                         mitFrac = 1.0, mitHandling = f_mhCode(ifvgMH), maxAge = ifvgAge))
+
+// ─── ⑦ Liquidity Void  (E2 · S2.3) ───────────────────────────────────
+// Fast one-directional run: N same-colour bars, big directional range, strong bodies.
+f_detect_lv() =>
+    int n = lvMinBars
+    bool up = true
+    bool dn = true
+    for k = 0 to n - 1
+        r  = high[k] - low[k]
+        br = r > 0 ? math.abs(close[k] - open[k]) / r : 0.0
+        if br < 0.5
+            up := false
+            dn := false
+        if close[k] <= open[k]
+            up := false
+        if close[k] >= open[k]
+            dn := false
+    if up
+        rng = high - low[n - 1]
+        if rng >= lvMinAtr * atr and close > close[n - 1]
+            f_register(PDArray.new(mod = M_LV, tag = "LV+", dir = 1, top = high, bot = low[n - 1],
+                 bornOff = n - 1, mitRule = MIT_FRAC, mitFrac = lvFillPct / 100.0,
+                 mitHandling = f_mhCode(lvMH), maxAge = lvAge))
+    if dn
+        rng = high[n - 1] - low
+        if rng >= lvMinAtr * atr and close < close[n - 1]
+            f_register(PDArray.new(mod = M_LV, tag = "LV-", dir = -1, top = high[n - 1], bot = low,
+                 bornOff = n - 1, mitRule = MIT_FRAC, mitFrac = lvFillPct / 100.0,
+                 mitHandling = f_mhCode(lvMH), maxAge = lvAge))
+
+// ─── ⑧ Volume Imbalance  (E2 · S2.4) ─────────────────────────────────
+// Body gap between consecutive candles while their wicks still overlap.
+f_detect_vi() =>
+    int mh = f_mhCode(viMH)
+    if open > close[1] and low <= high[1] and (open - close[1]) >= 0.05 * atr
+        f_register(PDArray.new(mod = M_VI, tag = "VI+", dir = 1, top = open, bot = close[1],
+             bornOff = 1, mitRule = MIT_FRAC, mitFrac = 1.0, mitHandling = mh, maxAge = viAge))
+    if open < close[1] and high >= low[1] and (close[1] - open) >= 0.05 * atr
+        f_register(PDArray.new(mod = M_VI, tag = "VI-", dir = -1, top = close[1], bot = open,
+             bornOff = 1, mitRule = MIT_FRAC, mitFrac = 1.0, mitHandling = mh, maxAge = viAge))
+
+// ─── ⑨ Opening Gaps — NDOG / NWOG  (E2 · S2.5) ───────────────────────
+f_detect_og() =>
+    if not timeframe.isdwm
+        int mh = f_mhCode(ogMH)
+        bool newDay  = newDayG
+        bool newWeek = newWeekG
+        if ogNwog and newWeek and not na(close[1]) and math.abs(open - close[1]) >= 0.05 * atr
+            d = open > close[1] ? 1 : -1
+            f_register(PDArray.new(mod = M_OG, tag = "NWOG", dir = d, top = math.max(open, close[1]),
+                 bot = math.min(open, close[1]), bornOff = 1, mitRule = MIT_FRAC, mitFrac = 1.0,
+                 mitHandling = mh, maxAge = ogAge, showCe = true))
+        else if ogNdog and newDay and not na(close[1]) and math.abs(open - close[1]) >= 0.05 * atr
+            d = open > close[1] ? 1 : -1
+            f_register(PDArray.new(mod = M_OG, tag = "NDOG", dir = d, top = math.max(open, close[1]),
+                 bot = math.min(open, close[1]), bornOff = 1, mitRule = MIT_FRAC, mitFrac = 1.0,
+                 mitHandling = mh, maxAge = ogAge, showCe = true))
+
+// ─── ⑭ Balanced Price Range  (E2 · S2.6) ─────────────────────────────
+// Overlap of a bullish and a bearish FVG formed within N bars of each other.
+f_detect_bpr() =>
+    if reg.size() > 1
+        for i = 0 to reg.size() - 1
+            eb = reg.get(i)
+            if eb.mod == M_FVG and eb.dir >= 0
+                for j = 0 to reg.size() - 1
+                    es = reg.get(j)
+                    if es.mod == M_FVG and es.dir < 0
+                        newPair = eb.regBar == bar_index or es.regBar == bar_index
+                        near    = math.abs(eb.bornBar - es.bornBar) <= bprMaxApart
+                        ot      = math.min(eb.top, es.top)
+                        ob      = math.max(eb.bot, es.bot)
+                        if newPair and near and ot > ob
+                            f_register(PDArray.new(mod = M_BPR, tag = "BPR", dir = 0, top = ot, bot = ob,
+                                 bornOff = bar_index - math.min(eb.bornBar, es.bornBar), mitRule = MIT_FRAC,
+                                 mitFrac = 1.0, mitHandling = f_mhCode(bprMH), maxAge = bprAge))
+
 f_detect_ob()   => false        // E3 · S3.1
 f_detect_brk()  => false        // E3 · S3.2
 f_detect_mb()   => false        // E3 · S3.3
