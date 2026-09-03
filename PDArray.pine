@@ -298,10 +298,16 @@ var array<string> evt = array.new<string>(3, "none")
 var array<float> drBox = array.new<float>(3, na)
 
 // recent confirmed pivots (shared by modules ⑩ ⑪ ⑮ ⑱); newest appended last.
-var array<float> phBuf    = array.new<float>()
-var array<int>   phBarBuf = array.new<int>()
-var array<float> plBuf    = array.new<float>()
-var array<int>   plBarBuf = array.new<int>()
+var array<float> phBuf     = array.new<float>()
+var array<int>   phBarBuf  = array.new<int>()
+var array<float> plBuf     = array.new<float>()
+var array<int>   plBarBuf  = array.new<int>()
+// correlated-symbol high/low sampled at each pivot bar (module ⑮ — avoids
+// dynamic historical indexing of a request.security series).
+var array<float> smtPh1 = array.new<float>()
+var array<float> smtPh2 = array.new<float>()
+var array<float> smtPl1 = array.new<float>()
+var array<float> smtPl2 = array.new<float>()
 int PIV_BUF = 12   // keep this many recent pivots per side
 
 // market-structure state for module ⑱ (function-writable via .set()).
@@ -375,6 +381,14 @@ if _inN[1] and not _inN
 // ── key opens for module ⑰ (New York local clock) ──
 _nyDayChg = ta.change(dayofmonth(time, klTz)) != 0
 _ny0830   = (hour(time, klTz) == 8 and minute(time, klTz) >= 30) and not (hour(time[1], klTz) == 8 and minute(time[1], klTz) >= 30)
+
+// ── correlated-symbol series for module ⑮ (SMT) ──
+_smtS1 = smtSym1
+_smtS2 = smtSym2 == "" ? syminfo.tickerid : smtSym2
+smtH1 = request.security(_smtS1, timeframe.period, high, lookahead = barmerge.lookahead_off, ignore_invalid_symbol = true)
+smtL1 = request.security(_smtS1, timeframe.period, low,  lookahead = barmerge.lookahead_off, ignore_invalid_symbol = true)
+smtH2 = request.security(_smtS2, timeframe.period, high, lookahead = barmerge.lookahead_off, ignore_invalid_symbol = true)
+smtL2 = request.security(_smtS2, timeframe.period, low,  lookahead = barmerge.lookahead_off, ignore_invalid_symbol = true)
 
 // Displacement (module ⑯) — detection always runs; it is a shared quality gate
 // consumed by modules ①②⑤⑱. The toggle only controls whether legs are drawn.
@@ -1063,7 +1077,53 @@ f_detect_kl() =>
         if klNY and _inN[1] and not _inN and not na(sesNHc)
             f_level(M_KL, "NY H", 1, sesNHc, false, MH_KEEP, 3000, klSesCol)
             f_level(M_KL, "NY L", -1, sesNLc, false, MH_KEEP, 3000, klSesCol)
-f_detect_smt()  => false        // E6 · S6.1 / S6.2
+// ─── ⑮ SMT Divergence  (E6 · S6.1 / S6.2) ──────────────────────────
+// At a fresh chart pivot, compare the chart's HH/LL against a correlated
+// symbol's over the same two swing bars. Disagreement = SMT divergence.
+var array<line> smtLn = array.new<line>()
+f_smtTrim() =>
+    while smtLn.size() > smtMax
+        line.delete(smtLn.shift())
+
+f_detect_smt() =>
+    // ── bearish SMT at highs ──
+    if not na(ph) and phBuf.size() >= 1
+        prevPx  = phBuf.get(phBuf.size() - 1)
+        prevBar = phBarBuf.get(phBarBuf.size() - 1)
+        chartHH = ph > prevPx
+        c1now = smtH1[gPivR]
+        c1pre = smtPh1.get(smtPh1.size() - 1)
+        c2now = smtH2[gPivR]
+        c2pre = smtPh2.get(smtPh2.size() - 1)
+        div1 = not na(c1now) and not na(c1pre) and (chartHH != (c1now > c1pre))
+        div2 = smtSym2 != "" and not na(c2now) and not na(c2pre) and (chartHH != (c2now > c2pre))
+        if div1 or div2
+            f_register(PDArray.new(mod = M_SMT, tag = "SMT bear", dir = -1, top = ph, bot = ph,
+                 isLevel = true, bornOff = gPivR, mitRule = MIT_NONE, mitHandling = MH_KEEP,
+                 maxAge = 400, col = smtBearCol))
+            evt.set(2, "bear @ " + str.tostring(ph, format.mintick))
+            if smtLine
+                smtLn.push(line.new(prevBar, prevPx, bar_index - gPivR, ph, color = smtBearCol, width = 1, style = line.style_dotted))
+                f_smtTrim()
+    // ── bullish SMT at lows ──
+    if not na(pl) and plBuf.size() >= 1
+        prevPx  = plBuf.get(plBuf.size() - 1)
+        prevBar = plBarBuf.get(plBarBuf.size() - 1)
+        chartLL = pl < prevPx
+        c1now = smtL1[gPivR]
+        c1pre = smtPl1.get(smtPl1.size() - 1)
+        c2now = smtL2[gPivR]
+        c2pre = smtPl2.get(smtPl2.size() - 1)
+        div1 = not na(c1now) and not na(c1pre) and (chartLL != (c1now < c1pre))
+        div2 = smtSym2 != "" and not na(c2now) and not na(c2pre) and (chartLL != (c2now < c2pre))
+        if div1 or div2
+            f_register(PDArray.new(mod = M_SMT, tag = "SMT bull", dir = 1, top = pl, bot = pl,
+                 isLevel = true, bornOff = gPivR, mitRule = MIT_NONE, mitHandling = MH_KEEP,
+                 maxAge = 400, col = smtBullCol))
+            evt.set(2, "bull @ " + str.tostring(pl, format.mintick))
+            if smtLine
+                smtLn.push(line.new(prevBar, prevPx, bar_index - gPivR, pl, color = smtBullCol, width = 1, style = line.style_dotted))
+                f_smtTrim()
 
 // ═════════════════════════════ MAIN ═════════════════════════════
 if barstate.isconfirmed and inLB
@@ -1108,15 +1168,23 @@ if barstate.isconfirmed and inLB
     if not na(ph)
         phBuf.push(ph)
         phBarBuf.push(bar_index - gPivR)
+        smtPh1.push(smtH1[gPivR])
+        smtPh2.push(smtH2[gPivR])
         if phBuf.size() > PIV_BUF
             phBuf.shift()
             phBarBuf.shift()
+            smtPh1.shift()
+            smtPh2.shift()
     if not na(pl)
         plBuf.push(pl)
         plBarBuf.push(bar_index - gPivR)
+        smtPl1.push(smtL1[gPivR])
+        smtPl2.push(smtL2[gPivR])
         if plBuf.size() > PIV_BUF
             plBuf.shift()
             plBarBuf.shift()
+            smtPl1.shift()
+            smtPl2.shift()
     f_lifecycle()
     f_declutter()
 
