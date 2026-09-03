@@ -318,8 +318,63 @@ pl    = ta.pivotlow(gPivL, gPivR)
 // conditionally-invoked module detectors — Pine requirement).
 _dayChg  = ta.change(time("D"))
 _wkChg   = ta.change(time("W"))
-newDayG  = not timeframe.isdwm and _dayChg != 0
-newWeekG = not timeframe.isdwm and _wkChg != 0
+_moChg   = ta.change(time("M"))
+newDayG   = not timeframe.isdwm and _dayChg != 0
+newWeekG  = not timeframe.isdwm and _wkChg  != 0
+newMonthG = not timeframe.isdwm and _moChg  != 0
+
+// ── HTF previous-period high/low for module ⑬ (non-repaint via [1]) ──
+[pdh, pdl] = request.security(syminfo.tickerid, "D", [high[1], low[1]], lookahead = barmerge.lookahead_off)
+[pwh, pwl] = request.security(syminfo.tickerid, "W", [high[1], low[1]], lookahead = barmerge.lookahead_off)
+[pmh, pml] = request.security(syminfo.tickerid, "M", [high[1], low[1]], lookahead = barmerge.lookahead_off)
+
+// ── session state for modules ⑫ (Session source) and ⑰ ──
+_inA = not na(time(timeframe.period, klAsiaSes, klTz))
+_inL = not na(time(timeframe.period, klLdnSes,  klTz))
+_inN = not na(time(timeframe.period, klNYSes,   klTz))
+var float sesAH = na
+var float sesAL = na
+var float sesLH = na
+var float sesLL = na
+var float sesNH = na
+var float sesNL = na
+var float sesAHc = na   // last completed
+var float sesALc = na
+var float sesLHc = na
+var float sesLLc = na
+var float sesNHc = na
+var float sesNLc = na
+if _inA
+    startA = not _inA[1]
+    sesAH := startA or na(sesAH) ? high : math.max(sesAH, high)
+    sesAL := startA or na(sesAL) ? low  : math.min(sesAL, low)
+if _inA[1] and not _inA
+    sesAHc := sesAH
+    sesALc := sesAL
+    sesAH  := na
+    sesAL  := na
+if _inL
+    startL = not _inL[1]
+    sesLH := startL or na(sesLH) ? high : math.max(sesLH, high)
+    sesLL := startL or na(sesLL) ? low  : math.min(sesLL, low)
+if _inL[1] and not _inL
+    sesLHc := sesLH
+    sesLLc := sesLL
+    sesLH  := na
+    sesLL  := na
+if _inN
+    startN = not _inN[1]
+    sesNH := startN or na(sesNH) ? high : math.max(sesNH, high)
+    sesNL := startN or na(sesNL) ? low  : math.min(sesNL, low)
+if _inN[1] and not _inN
+    sesNHc := sesNH
+    sesNLc := sesNL
+    sesNH  := na
+    sesNL  := na
+
+// ── key opens for module ⑰ (New York local clock) ──
+_nyDayChg = ta.change(dayofmonth(time, klTz)) != 0
+_ny0830   = (hour(time, klTz) == 8 and minute(time, klTz) >= 30) and not (hour(time[1], klTz) == 8 and minute(time[1], klTz) >= 30)
 
 // Displacement (module ⑯) — detection always runs; it is a shared quality gate
 // consumed by modules ①②⑤⑱. The toggle only controls whether legs are drawn.
@@ -771,6 +826,12 @@ f_hasOverlap(int m, int d, float t, float b) =>
                 break
     found
 
+// ─── helper: register a single horizontal level array ───
+f_level(int m, string tg, int d, float px, bool ext, int mh, int maxAge, color cc) =>
+    if not na(px)
+        f_register(PDArray.new(mod = m, tag = tg, dir = d, top = px, bot = px, isLevel = true,
+             extend = ext, bornOff = 1, mitRule = MIT_SWEEP, mitHandling = mh, maxAge = maxAge, col = cc))
+
 // ─── ① Order Block (+ propulsion)  (E3 · S3.1) ───────────────────────
 // Last opposite-close candle before a displacement leg. Structure-break
 // requirement is approximated by the displacement gate (module ⑯); the
@@ -948,9 +1009,60 @@ f_detect_ms() =>
             msState.set(2, na)
             msState.set(4, -1)
 
-f_detect_dr()   => false        // E5 · S5.1 / S5.2
-f_detect_ref()  => false        // E5 · S5.3
-f_detect_kl()   => false        // E5 · S5.4
+// ─── ⑫ Dealing Range  (E5 · S5.1 / S5.2) ────────────────────────────
+// Only computes the range into drBox[]; the premium/discount/EQ/OTE/fib
+// drawing happens in a dedicated global block (fixed handle set, no clutter).
+f_detect_dr() =>
+    float t = na
+    float b = na
+    if drSrc == "Previous period"
+        t := drPeriod == "Week" ? pwh : drPeriod == "Month" ? pmh : pdh
+        b := drPeriod == "Week" ? pwl : drPeriod == "Month" ? pml : pdl
+    else if drSrc == "Session"
+        t := drSession == "Asia" ? sesAHc : drSession == "New York" ? sesNHc : sesLHc
+        b := drSession == "Asia" ? sesALc : drSession == "New York" ? sesNLc : sesLLc
+    else
+        if phBuf.size() > 0 and plBuf.size() > 0
+            t := phBuf.get(phBuf.size() - 1)
+            b := plBuf.get(plBuf.size() - 1)
+    if not na(t) and not na(b) and t > b
+        drBox.set(0, t)
+        drBox.set(1, b)
+        // leg direction: +1 if the swing high is the more recent pivot
+        d = 1
+        if drSrc == "Auto swing" and phBarBuf.size() > 0 and plBarBuf.size() > 0
+            d := phBarBuf.get(phBarBuf.size() - 1) >= plBarBuf.get(plBarBuf.size() - 1) ? 1 : -1
+        drBox.set(2, d)
+
+// ─── ⑬ Reference Levels — PDH/PDL, PWH/PWL, PMH/PML  (E5 · S5.3) ─────
+f_detect_ref() =>
+    int mh = f_mhCode(refMH)
+    if refDay and newDayG
+        f_level(M_REF, "PDH", 1, pdh, true, mh, 5000, refCol)
+        f_level(M_REF, "PDL", -1, pdl, true, mh, 5000, refCol)
+    if refWeek and newWeekG
+        f_level(M_REF, "PWH", 1, pwh, true, mh, 5000, refCol)
+        f_level(M_REF, "PWL", -1, pwl, true, mh, 5000, refCol)
+    if refMonth and newMonthG
+        f_level(M_REF, "PMH", 1, pmh, true, mh, 5000, refCol)
+        f_level(M_REF, "PML", -1, pml, true, mh, 5000, refCol)
+
+// ─── ⑰ Key Levels & Opens  (E5 · S5.4) ──────────────────────────────
+f_detect_kl() =>
+    if not timeframe.isdwm
+        if klMidnight and _nyDayChg
+            f_level(M_KL, "TDO", 0, open, true, MH_KEEP, 3000, klOpenCol)
+        if klEight and _ny0830
+            f_level(M_KL, "08:30", 0, open, true, MH_KEEP, 3000, klOpenCol)
+        if klAsia and _inA[1] and not _inA and not na(sesAHc)
+            f_level(M_KL, "ASIA H", 1, sesAHc, false, MH_KEEP, 3000, klSesCol)
+            f_level(M_KL, "ASIA L", -1, sesALc, false, MH_KEEP, 3000, klSesCol)
+        if klLondon and _inL[1] and not _inL and not na(sesLHc)
+            f_level(M_KL, "LDN H", 1, sesLHc, false, MH_KEEP, 3000, klSesCol)
+            f_level(M_KL, "LDN L", -1, sesLLc, false, MH_KEEP, 3000, klSesCol)
+        if klNY and _inN[1] and not _inN and not na(sesNHc)
+            f_level(M_KL, "NY H", 1, sesNHc, false, MH_KEEP, 3000, klSesCol)
+            f_level(M_KL, "NY L", -1, sesNLc, false, MH_KEEP, 3000, klSesCol)
 f_detect_smt()  => false        // E6 · S6.1 / S6.2
 
 // ═════════════════════════════ MAIN ═════════════════════════════
@@ -1009,6 +1121,89 @@ if barstate.isconfirmed and inLB
     f_declutter()
 
 f_render()
+
+// ═══════════════ ⑫ DEALING RANGE RENDER (fixed handle set, last bar) ═══════════════
+// Kept out of the registry: a single structure, drawn on the last bar with
+// reused handles so it never contributes to clutter or the object budget.
+var box  drPremBx = na
+var box  drDiscBx = na
+var box  drOteBx  = na
+var line drEqLn   = na
+var array<line>  drFibLn  = array.new<line>()
+var array<label> drFibLbl = array.new<label>()
+
+if barstate.islast
+    drT = drBox.get(0)
+    drB = drBox.get(1)
+    drD = na(drBox.get(2)) ? 1 : int(drBox.get(2))
+    bool drAny = f_modOn(M_DR) and not na(drT) and not na(drB) and drT > drB
+    // wipe fib handles every refresh (small count)
+    if drFibLn.size() > 0
+        for i = 0 to drFibLn.size() - 1
+            line.delete(drFibLn.get(i))
+        drFibLn.clear()
+    if drFibLbl.size() > 0
+        for i = 0 to drFibLbl.size() - 1
+            label.delete(drFibLbl.get(i))
+        drFibLbl.clear()
+    if not drAny
+        if not na(drPremBx)
+            box.delete(drPremBx)
+            drPremBx := na
+        if not na(drDiscBx)
+            box.delete(drDiscBx)
+            drDiscBx := na
+        if not na(drOteBx)
+            box.delete(drOteBx)
+            drOteBx := na
+        if not na(drEqLn)
+            line.delete(drEqLn)
+            drEqLn := na
+    else
+        rngv = drT - drB
+        eqv  = (drT + drB) / 2.0
+        lft  = bar_index - 1
+        rgt  = bar_index + 15
+        if drShowBox
+            if na(drPremBx)
+                drPremBx := box.new(lft, drT, rgt, eqv, bgcolor = drPremCol, border_color = color.new(drEqCol, 70), border_width = 1)
+                drDiscBx := box.new(lft, eqv, rgt, drB, bgcolor = drDiscCol, border_color = color.new(drEqCol, 70), border_width = 1)
+            else
+                box.set_lefttop(drPremBx, lft, drT)
+                box.set_rightbottom(drPremBx, rgt, eqv)
+                box.set_lefttop(drDiscBx, lft, eqv)
+                box.set_rightbottom(drDiscBx, rgt, drB)
+        else if not na(drPremBx)
+            box.delete(drPremBx)
+            drPremBx := na
+            box.delete(drDiscBx)
+            drDiscBx := na
+        if na(drEqLn)
+            drEqLn := line.new(lft, eqv, rgt, eqv, color = drEqCol, style = line.style_dashed, width = 1)
+        else
+            line.set_xy1(drEqLn, lft, eqv)
+            line.set_xy2(drEqLn, rgt, eqv)
+        oteA = drD >= 0 ? drT - drOteHi * rngv : drB + drOteHi * rngv
+        oteB = drD >= 0 ? drT - drOteLo * rngv : drB + drOteLo * rngv
+        if drShowOte
+            oteTop = math.max(oteA, oteB)
+            oteBot = math.min(oteA, oteB)
+            if na(drOteBx)
+                drOteBx := box.new(lft, oteTop, rgt, oteBot, bgcolor = color.new(drD >= 0 ? color.teal : color.red, 82), border_color = color.new(drEqCol, 50), border_width = 1)
+            else
+                box.set_lefttop(drOteBx, lft, oteTop)
+                box.set_rightbottom(drOteBx, rgt, oteBot)
+        else if not na(drOteBx)
+            box.delete(drOteBx)
+            drOteBx := na
+        parts = str.split(drFibs, ",")
+        if parts.size() > 0
+            for i = 0 to parts.size() - 1
+                fv = str.tonumber(str.trim(parts.get(i)))
+                if not na(fv)
+                    px = drD >= 0 ? drT - fv * rngv : drB + fv * rngv
+                    drFibLn.push(line.new(lft, px, rgt, px, color = color.new(drEqCol, 30), style = line.style_dotted, width = 1))
+                    drFibLbl.push(label.new(rgt, px, str.tostring(fv), style = label.style_none, textcolor = drEqCol, size = size.tiny))
 
 // ═════════════════════════════ INFO PANEL ═════════════════════════════
 var table ip = na
