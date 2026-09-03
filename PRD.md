@@ -241,10 +241,41 @@ ICT/SMC-traders werken met een grote, samenhangende set **PD arrays** (Premium/D
 - **Volume-weging** is altijd secundair (optionele sterkte-/kwaliteitsfactor), nooit detectie-basis; zichtbare fallback zonder volumedata.
 - **Opening gaps / key opens / sessies** worden op de chart-timeframe afgeleid; op zeer hoge timeframes (≥ D1) zijn NDOG/sessie-levels per definitie niet zinvol en worden ze verborgen met een statusmelding.
 - **Repaint tijdens vorming**: de laatst-gevormde pivot-array verschijnt pas na `pivotRightBars` bars; dit is bewust.
+- **Mitigatie-regels**: v1 gebruikt één gedeelde set regels — `MIT_FAREDGE` (close voorbij verre grens), `MIT_CE` (wick door 50%), `MIT_FRAC` (retrace-fractie near→far, drijft FVG-fill-rule en Liquidity-Void-fill%), `MIT_SWEEP` (niveau doorhandeld) en `MIT_NONE` (historische marker, alleen veroudering). De FVG "fill rule" is dus een MIT_FRAC met fractie 0.5 of 1.0.
+- **IFVG vereist dat de FVG blijft staan**: module ⑥ zet een gevulde FVG om zodra de prijs er volledig doorheen sluit. Als FVG-`Mitigated handling` op **Remove** staat, is de FVG mogelijk al weg vóór de doorbraak — default staat daarom op **Fade**. Bij `Remove` werkt IFVG alleen als de doorbraak in dezelfde bar valt als de CE-fill.
+- **OB→Breaker / OB→Mitigation Block**: module ② volgt een OB-fase (`respected → violated → retested`) via het `flag`-veld. Werkt het best met OB-`handling` = Fade/Keep (default Fade). Module ③ (Mitigation Block) is v1 een heuristiek: een tegengestelde candle vóór een reversal **zonder** displacement en zonder bestaande OB/MB op die plek — bewust onderscheiden van de breaker (die een violated block vereist).
+- **Registry-mutatie tijdens iteratie**: modules ⑥ ⑭ ② scannen `reg` en registreren tegelijk nieuwe arrays. Als `reg` exact op de interne cap van 500 zit, kan de eviction in `f_register` één detectie per bar overslaan of dubbeltellen. Bij 500 getrackte arrays is de chart al verzadigd; het effect corrigeert zichzelf de volgende bar.
+- **Sessie-H/L en key opens** (module ⑰) worden op de chart-timeframe afgeleid en kunnen intrabar bijwerken tot de betreffende bar sluit; de definitieve waarde staat vast na bar-close. Op timeframes ≥ D1 zijn NDOG/sessies/opens uitgeschakeld.
+- **NDOG vs NWOG budget**: `Max NDOG` en `Max NWOG` delen in v1 één decluttering-budget voor module ⑨ (`max(Max NDOG, Max NWOG)`); ze worden niet apart geplafonneerd.
+- **Dealing Range** wordt 1 pivot-bevestiging vertraagd bijgewerkt (de gedeelde pivot-buffer wordt ná de detectoren onderhouden om zelf-matching bij Equal H/L te voorkomen). De premium/discount/EQ/OTE/fib-tekening staat bewust buiten de registry en verschijnt alleen op de laatste bar.
 
 ## 9. Verificatiestatus
 
-- **Pine**: geschreven en gecontroleerd via handmatige code-review van de Pine v6-taalregels; nog niet gecompileerd/getest op een live TradingView-chart (geen TradingView-compiler in deze omgeving). Hoogste-risico-onderdelen bij een eerste live test: §4.15 (SMT `request.security` op een ander symbool), §4.12/§4.17 (tijdzone- en sessie-logica), §4.2/§4.6 (toestand-machines OB→breaker en FVG→IFVG).
+- **Pine**: `PDArray.pine` volledig geïmplementeerd (modules ①–⑱ + gedeelde core) en gecontroleerd via handmatige review van de Pine v6-taalregels. **Nog niet gecompileerd of op een live TradingView-chart getest** (geen TradingView-compiler in deze omgeving). Eerste stap voor de gebruiker: in de Pine Editor plakken en compile-fouten oplossen.
+
+### Pine v6 review-checklist (S10.1)
+| Onderwerp | Status |
+|---|---|
+| `//@version=6`, `indicator(overlay=true)`, object-limieten (`max_boxes/lines/labels_count=500`, `max_bars_back=3000`) | ✅ |
+| Geen genest gedefinieerde functies; alle `f_*` op top-niveau | ✅ |
+| Functies muteren alleen `reg`/`evt`/`drBox`/`msState`/buffers via array-methodes (nooit een globale scalar herbinden) | ✅ |
+| History-afhankelijke calls (`ta.*`, `time()`, `request.security`, `dayofmonth/hour/minute`) staan **allemaal** op global scope, nooit in een conditioneel aangeroepen detector | ✅ |
+| `for i = 0 to reg.size() - 1` altijd voorafgegaan door `if reg.size() > 0` | ✅ |
+| Backward-loop `for i = reg.size() - 1 to 0` in `f_lifecycle` — Pine telt automatisch af; `reg.remove(i)` tijdens afwaarts itereren is veilig | ✅ |
+| `int` sentinel `-1` i.p.v. `na` voor lus-indexvariabelen (`kk`) | ✅ |
+| `color.new(c, transp)` krijgt altijd een `int` transparency (`int(...)`-cast in renderer) | ✅ |
+| `switch`-cases met niet-const labels (`M_OB` enz.) — toegestaan in v6 | ✅ |
+| `continue`/`break` in loops — v6 | ✅ |
+| `request.security` met `[1]`-offset voor non-repaint HTF; `ignore_invalid_symbol=true` voor SMT-symbolen | ✅ |
+| `alert()` alleen op global scope (ALERT EVAL-blok), nooit in een functie; `alertcondition()` onvoorwaardelijk onderaan | ✅ |
+| Sibling-`if`-blokken die dezelfde lokale naam hergebruiken — toegestaan (block scope); kritieke gevallen alsnog hernoemd | ✅ |
+
+**Hoogste-risico-onderdelen bij de eerste live test** (verdienen extra aandacht):
+1. §4.15 SMT — `request.security` op een ander symbool + de parallelle sample-buffers.
+2. §4.12/§4.17 — tijdzone-/sessielogica (`time(timeframe.period, session, tz)`, NY-klok voor opens).
+3. §4.2/§4.6 — toestandmachines OB→breaker (`flag`) en FVG→IFVG.
+4. Object-budget bij "alles aan" op lange historie (declutter + `max_*_count`).
+
 - **MQL5 / cTrader**: nog niet gestart (epics E8/E9).
 - Alle versies: array-plaatsing/lifecycle moet visueel vergeleken worden tussen platformen op hetzelfde instrument/timeframe voordat er alerts op draaien.
 

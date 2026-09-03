@@ -45,10 +45,34 @@ Elke module heeft: `Enable`, eigen bull/bear-kleur, `Max Shown`, `Mitigated Hand
 
 ## Gebruik (Pine / TradingView)
 
-1. Kopieer de inhoud van `PDArray.pine` in de Pine Editor van TradingView.
-2. Voeg toe aan de chart als **overlay op de hoofdgrafiek** (niet een apart paneel).
-3. Zet ongewenste modules uit via hun `Enable`-toggle; stel `Max Shown` per module af.
-4. Voor webhook-automatisering: zet "Enable JSON Webhook Alerts" aan en maak een alert op "Any alert() function call".
+1. Kopieer de inhoud van `PDArray.pine` in de Pine Editor van TradingView en klik **Add to chart** (overlay op de hoofdgrafiek — geen apart paneel).
+2. Zet ongewenste modules uit via hun `① … ⑱ Enable`-toggle. `Enable All Modules` bovenaan is de noodrem.
+3. Stel per module `Max shown` en `Mitigated handling` (Fade / Remove / Keep) af.
+4. `Global / Theme`: `Compact Mode` voor een rustiger chart, `Color Theme` (Neutral / Vivid / Mono), `Lookback Bars` voor performance.
+5. Webhook-automatisering: zet `Enable JSON Webhook Alerts` aan en maak een TradingView-alert op **"Any alert() function call"**. Payload-schema: zie [`PRD.md` §4.20](PRD.md).
+6. Losse alerts (zonder webhook): maak een alert op een van de zeven `alertcondition`-namen (PD Array — formed / tapped / mitigated, Liquidity swept, Market structure shift, SMT divergence, Discount + OTE entry).
+
+### Aanbevolen startinstellingen (AUDCAD H4 / H1)
+
+| Instelling | H4 | H1 |
+|---|---|---|
+| Pivot Left / Right Bars | 5 / 5 | 6 / 6 |
+| ATR Length | 14 | 14 |
+| Lookback Bars | 1500 | 2000 |
+| FVG min gap (x ATR) | 0.10 | 0.15 |
+| Displacement (x ATR) | 1.5 | 1.3 |
+| SMT symbol 1 / 2 | `FX:AUDUSD` / `FX:USDCAD` | idem |
+
+### Voorbeeld-presets
+
+- **Alles aan** — verkennen; zet `Compact Mode` aan en verlaag `Max shown` per module naar 3–4.
+- **Alleen imbalance** — modules ⑤ ⑥ ⑦ ⑧ ⑨ ⑭ aan, rest uit. FVG + CE + BPR voor entdifferent-model trading.
+- **Structuur & liquidity** — modules ⑩ ⑪ ⑯ ⑱ aan. BOS/MSS + buyside/sellside + displacement.
+- **Dealing range + OTE** — modules ⑫ ⑬ ⑰ aan. Premium/discount context met OTE-band en referentielevels.
+
+## Gebruik (MQL5 / cTrader)
+
+De MQL5- en cTrader-ports volgen als aparte epics (E8 / E9). Zie [`PRD.md` §6](PRD.md) voor de geplande platformverschillen.
 
 ## Ontwikkelstatus
 

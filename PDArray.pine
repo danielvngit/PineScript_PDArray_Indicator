@@ -976,10 +976,10 @@ f_detect_eq() =>
                 cnt += 1
         if not na(matchP)
             lvl = (matchP + ph) / 2.0
-            a = PDArray.new(mod = M_EQ, tag = "EQH", dir = 1, top = lvl, bot = lvl, isLevel = true,
+            ah = PDArray.new(mod = M_EQ, tag = "EQH", dir = 1, top = lvl, bot = lvl, isLevel = true,
                  extend = true, bornOff = gPivR + 20, mitRule = MIT_SWEEP, mitHandling = f_mhCode(eqMH), maxAge = eqAge)
-            a.count := cnt
-            f_register(a)
+            ah.count := cnt
+            f_register(ah)
     if not na(pl) and plBuf.size() > 0
         float matchP = na
         cnt = 1
@@ -989,10 +989,10 @@ f_detect_eq() =>
                 cnt += 1
         if not na(matchP)
             lvl = (matchP + pl) / 2.0
-            a = PDArray.new(mod = M_EQ, tag = "EQL", dir = -1, top = lvl, bot = lvl, isLevel = true,
+            al = PDArray.new(mod = M_EQ, tag = "EQL", dir = -1, top = lvl, bot = lvl, isLevel = true,
                  extend = true, bornOff = gPivR + 20, mitRule = MIT_SWEEP, mitHandling = f_mhCode(eqMH), maxAge = eqAge)
-            a.count := cnt
-            f_register(a)
+            al.count := cnt
+            f_register(al)
 
 // ─── ⑯ Displacement leg drawing  (E4 · S4.4) ────────────────────────
 // bullDisp / bearDisp are computed globally; this only draws the leg.
@@ -1019,25 +1019,25 @@ f_detect_ms() =>
     upBasis = msBasis == "Close" ? close : high
     dnBasis = msBasis == "Close" ? close : low
     if not na(pHigh) and upBasis > pHigh
-        isMss = trend < 0
-        if not isMss or not msReqDisp or bullDisp
-            tag = isMss ? "MSS ×" : "BOS ×"
-            a = PDArray.new(mod = M_MS, tag = tag, dir = 1, top = pHigh, bot = pHigh, isLevel = true,
+        isMssU = trend < 0
+        if not isMssU or not msReqDisp or bullDisp
+            tagU = isMssU ? "MSS ×" : "BOS ×"
+            au = PDArray.new(mod = M_MS, tag = tagU, dir = 1, top = pHigh, bot = pHigh, isLevel = true,
                  bornOff = bar_index - int(msState.get(1)), mitRule = MIT_NONE, mitHandling = MH_KEEP,
-                 maxAge = 4000, col = isMss ? msMssCol : msBosCol)
-            f_register(a)
-            evt.set(1, (isMss ? "MSS bull @ " : "BOS bull @ ") + str.tostring(pHigh, format.mintick))
+                 maxAge = 4000, col = isMssU ? msMssCol : msBosCol)
+            f_register(au)
+            evt.set(1, (isMssU ? "MSS bull @ " : "BOS bull @ ") + str.tostring(pHigh, format.mintick))
             msState.set(0, na)
             msState.set(4, 1)
     if not na(pLow) and dnBasis < pLow
-        isMss = trend > 0
-        if not isMss or not msReqDisp or bearDisp
-            tag = isMss ? "MSS ×" : "BOS ×"
-            a = PDArray.new(mod = M_MS, tag = tag, dir = -1, top = pLow, bot = pLow, isLevel = true,
+        isMssD = trend > 0
+        if not isMssD or not msReqDisp or bearDisp
+            tagD = isMssD ? "MSS ×" : "BOS ×"
+            ad = PDArray.new(mod = M_MS, tag = tagD, dir = -1, top = pLow, bot = pLow, isLevel = true,
                  bornOff = bar_index - int(msState.get(3)), mitRule = MIT_NONE, mitHandling = MH_KEEP,
-                 maxAge = 4000, col = isMss ? msMssCol : msBosCol)
-            f_register(a)
-            evt.set(1, (isMss ? "MSS bear @ " : "BOS bear @ ") + str.tostring(pLow, format.mintick))
+                 maxAge = 4000, col = isMssD ? msMssCol : msBosCol)
+            f_register(ad)
+            evt.set(1, (isMssD ? "MSS bear @ " : "BOS bear @ ") + str.tostring(pLow, format.mintick))
             msState.set(2, na)
             msState.set(4, -1)
 
@@ -1179,7 +1179,7 @@ if barstate.isconfirmed and inLB
         f_detect_smt()
     if f_modOn(M_BPR)
         f_detect_bpr()
-    if dispOn
+    if f_modOn(M_DISP)
         f_detect_disp()
     // shared pivot buffers (used by modules ⑪ ⑮) — maintained AFTER detection so
     // this bar's own pivot isn't matched against itself.
