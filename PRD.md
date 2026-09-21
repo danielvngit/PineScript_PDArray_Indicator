@@ -145,7 +145,7 @@ ICT/SMC-traders werken met een grote, samenhangende set **PD arrays** (Premium/D
 - v1-beperking: geen automatische correlatie-detectie; de gebruiker geeft de symbolen op.
 
 ### 4.16 Displacement (§ Displacement) — Epic E4
-- Detecteert een energieke verplaatsing: één bar of een run van ≤ `Displacement Max Bars` (default 3) bars met totale gerichte range ≥ `Displacement (x ATR)` (default 1.5) en gemiddelde body/range-ratio ≥ `Min Body Ratio` (default 0.5).
+- Detecteert een energieke verplaatsing: één bar of een run van ≤ `Displacement Max Bars` (default 3) bars met totale gerichte range ≥ `Displacement (x ATR)` (default 1.5) en gemiddelde body/range-ratio ≥ `Min Body Ratio` (default 0.5). Alle candles van de run hebben dezelfde richting; de kortste run (1..N candles) die aan de drempels voldoet telt, en de getekende leg begint bij de eerste candle van die run (S4.8).
 - **Optioneel zichtbaar**: de displacement-leg markeren (pijl / dunne box).
 - **Kern-functie**: exposeert `bullDisplacement` / `bearDisplacement` (booleans) die door modules 1, 2, 5 en 18 als kwaliteitsgate gebruikt worden (`Require Displacement`).
 
@@ -162,11 +162,12 @@ ICT/SMC-traders werken met een grote, samenhangende set **PD arrays** (Premium/D
 - Elk gebroken swingpunt: horizontale lijn van het swingpunt tot de breek-bar + `×`-markering "liquidity taken" + label.
 - Config: `Structure Basis` = `Close` of `Wick`; v1 werkt op één niveau (swing structure), interne (lower-timeframe) structuur is een latere refinement.
 - **Relevantie** (S4.6): de lijn loopt van het gebroken swingpunt **tot de breek-bar** en stopt daar (nooit door tot het heden); het label staat op de breek-bar. Bij een **MSS** worden alle eerdere BOS/MSS-lijnen opgeruimd: alleen de structuur van de huidige trend blijft staan (tenzij `Show structure history` aan staat, S4.7: dan blijven eerdere BOS/MSS staan, begrensd door `Max shown`). Ouderdom telt vanaf de breek-bar (latere aanrakingen houden een lijn niet in leven); elke breuk is een eigen event (geen merge).
+- **Richting** (S4.9): het label toont de richting (`BOS × ↑` / `BOS × ↓`, `MSS × ↑` / `MSS × ↓`); de array-`tag` (en dus de webhook-`array_type`) blijft `BOS ×` / `MSS ×`.
 
 ### 4.19 Info-paneel (§ Info Panel) — Epic E7
 - Optioneel, positie instelbaar (4 hoeken). Toont:
   - Positie in de dealing range (premium / discount + % afstand tot EQ).
-  - Dichtstbijzijnde onmitigated bullish PD array **onder** de prijs (type + afstand).
+  - Dichtstbijzijnde onmitigated bullish PD array **onder** de prijs (type + afstand). Historische markers (BOS/MSS, SMT) en displacement-legs zijn geen PD arrays en tellen niet mee (S4.9).
   - Dichtstbijzijnde onmitigated bearish PD array **boven** de prijs (type + afstand).
   - Laatste liquidity sweep (`BSL @ 0.6841, 3 bars geleden`).
   - Laatste structuur-event (`MSS bull @ 0.6790, 7 bars geleden`).
@@ -297,7 +298,7 @@ Milestones op GitHub = epics; issues = stories. Elke module-issue heeft acceptat
 | **E1 — Scaffold & Shared Core** | Repo, PRD, README, licentie; indicator-skelet; `PDArray` UDT + registry; lifecycle-manager; gedeelde renderer; decluttering + object-budget; input-framework + master switch; alert-dispatcher-stub; info-paneel-stub | S1.1 repo + docs scaffold · S1.2 indicator-skelet + input-framework · S1.3 `PDArray` UDT + registry + `f_register`/dedupe · S1.4 lifecycle-manager (formed/tapped/mitigated/age) · S1.5 gedeelde renderer (box/line/label/CE) · S1.6 decluttering + globaal budget · S1.7 alert-dispatcher + JSON-schema · S1.8 info-paneel-stub |
 | **E2 — Imbalance arrays** | Modules 5, 6, 7, 8, 9, 14 | S2.1 FVG + CE (§4.5) · S2.2 IFVG (§4.6) · S2.3 Liquidity Void (§4.7) · S2.4 Volume Imbalance (§4.8) · S2.5 Opening Gaps NDOG/NWOG (§4.9) · S2.6 BPR (§4.14) |
 | **E3 — Order-flow blocks** | Modules 1, 2, 3, 4 | S3.1 Order Block + propulsion/reclaimed (§4.1) · S3.2 Breaker (§4.2) · S3.3 Mitigation Block (§4.3) · S3.4 Rejection Block (§4.4) |
-| **E4 — Liquidity & Structure** | Modules 10, 11, 16, 18 | S4.1 Buyside/Sellside Liquidity + sweeps (§4.10) · S4.2 Trendline liquidity (§4.10, vereenvoudigd) · S4.3 Equal Highs/Lows (§4.11) · S4.4 Displacement (§4.16) · S4.5 BOS/MSS/CHoCH (§4.18) · S4.6 BOS/MSS-relevantie: lijn tot breek-bar + alleen huidige trend (§4.18) · S4.7 optie BOS/MSS-geschiedenis aan/uit (§4.18) |
+| **E4 — Liquidity & Structure** | Modules 10, 11, 16, 18 | S4.1 Buyside/Sellside Liquidity + sweeps (§4.10) · S4.2 Trendline liquidity (§4.10, vereenvoudigd) · S4.3 Equal Highs/Lows (§4.11) · S4.4 Displacement (§4.16) · S4.5 BOS/MSS/CHoCH (§4.18) · S4.6 BOS/MSS-relevantie: lijn tot breek-bar + alleen huidige trend (§4.18) · S4.7 optie BOS/MSS-geschiedenis aan/uit (§4.18) · S4.8 displacement: run van 1..N candles (§4.16) · S4.9 BOS/MSS-richting in label + markers uit paneel (§4.18/§4.19) · S4.10 trendstatus na counter-trend break zonder displacement (§4.18) |
 | **E5 — Dealing Range & Levels** | Modules 12, 13, 17 | S5.1 Dealing Range + Premium/Discount/EQ (§4.12) · S5.2 OTE + configureerbare fib-levels (§4.12) · S5.3 Reference Levels PDH/PDL/PWH/PWL/PMH/PML (§4.13) · S5.4 Key Levels & Opens + sessies (§4.17) |
 | **E6 — SMT Divergence** | Module 15 | S6.1 SMT met 1 gecorreleerd symbool (§4.15) · S6.2 optioneel 2e symbool + lijn-weergave |
 | **E7 — UX polish & alerts** | Afronden info-paneel, alerts, theming | S7.1 info-paneel volledig (§4.19) · S7.2 alerts per module + debounce (§4.20) · S7.3 compact mode + theme-preset (§4.22) · S7.4 performance-caps + lookback (§4.21) · S7.5 tooltips-review alle inputs · S7.6 info-paneel: instelbare achtergrond + transparantie (§4.19) |

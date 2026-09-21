@@ -232,8 +232,10 @@ smtMax   = input.int(4, "Max shown", minval = 1, maxval = 20, group = "⑮ SMT D
 dispOn   = input.bool(true, "⑯ Displacement — draw legs", group = "⑯ Displacement",
      tooltip = "Detection always runs (used as a quality gate by ①②⑤⑱). This toggle only controls whether the legs are drawn.")
 dispAtr  = input.float(1.5, "Displacement (x ATR)", minval = 0.5, step = 0.1, group = "⑯ Displacement", display = DSP)
-dispMaxBars = input.int(3, "Max bars per leg", minval = 1, maxval = 8, group = "⑯ Displacement", display = DSP)
-dispBodyRatio = input.float(0.5, "Min body / range ratio", minval = 0.2, maxval = 0.95, step = 0.05, group = "⑯ Displacement", display = DSP)
+dispMaxBars = input.int(3, "Max bars per leg", minval = 1, maxval = 8, group = "⑯ Displacement",
+     tooltip = "A displacement is a single strong candle or a run of up to this many same-direction candles.", display = DSP)
+dispBodyRatio = input.float(0.5, "Min body / range ratio", minval = 0.2, maxval = 0.95, step = 0.05, group = "⑯ Displacement",
+     tooltip = "Average body-to-range ratio of the candles in the run (1 = no wicks).", display = DSP)
 dispCol  = input.color(color.new(#ffee58, 40), "Leg color", group = "⑯ Displacement")
 dispMax  = input.int(3, "Max shown", minval = 1, maxval = 20, group = "⑯ Displacement", display = DSP)
 
@@ -410,25 +412,32 @@ smtL2 = request.security(_smtS2, timeframe.period, low,  lookahead = barmerge.lo
 
 // Displacement (module ⑯) — detection always runs; it is a shared quality gate
 // consumed by modules ①②⑤⑱. The toggle only controls whether legs are drawn.
+// A displacement is a run of 1..dispMaxBars same-direction candles ending on the
+// current bar, with an average body/range ratio >= dispBodyRatio and a directional
+// range >= dispAtr x ATR. The shortest qualifying run wins; its length is kept in
+// dispLen so the leg can be drawn from the right candle.
 bullDisp = false
 bearDisp = false
+int dispLen = 0
 if barstate.isconfirmed
-    _up = true
-    _dn = true
-    for k = 0 to dispMaxBars - 1
-        _r  = high[k] - low[k]
-        _br = _r > 0 ? math.abs(close[k] - open[k]) / _r : 0.0
-        if _br < dispBodyRatio
-            _up := false
-            _dn := false
-        if close[k] <= open[k]
-            _up := false
-        if close[k] >= open[k]
-            _dn := false
-    _legUp = close - low[dispMaxBars - 1]
-    _legDn = high[dispMaxBars - 1] - close
-    bullDisp := _up and _legUp >= dispAtr * atr
-    bearDisp := _dn and _legDn >= dispAtr * atr
+    for n = 1 to dispMaxBars
+        _upN  = true
+        _dnN  = true
+        _brSum = 0.0
+        for k = 0 to n - 1
+            _r = high[k] - low[k]
+            _brSum += _r > 0 ? math.abs(close[k] - open[k]) / _r : 0.0
+            if close[k] <= open[k]
+                _upN := false
+            if close[k] >= open[k]
+                _dnN := false
+        if _brSum / n >= dispBodyRatio and dispLen == 0
+            if _upN and close - low[n - 1] >= dispAtr * atr
+                bullDisp := true
+                dispLen  := n
+            else if _dnN and high[n - 1] - close >= dispAtr * atr
+                bearDisp := true
+                dispLen  := n
 
 // ═════════════════════════════ SHARED CORE ═════════════════════════════
 f_mhCode(string s) => s == "Remove" ? MH_REMOVE : s == "Keep" ? MH_KEEP : MH_FADE
@@ -744,7 +753,9 @@ f_render() =>
                 // bullish break, below for a bearish one, so it doesn't cover the
                 // candles that follow the break bar.
                 lstyle = a.endBar > 0 ? (a.dir >= 0 ? label.style_label_down : label.style_label_up) : a.isLevel ? label.style_label_left : label.style_none
-                txt    = a.tag + ((a.mod == M_EQ or a.mod == M_LIQ) and a.count > 1 ? " x" + str.tostring(a.count) : "")
+                // structure breaks carry their direction in the text (the tag itself stays
+                // unchanged so the webhook array_type is stable)
+                txt    = a.tag + ((a.mod == M_EQ or a.mod == M_LIQ) and a.count > 1 ? " x" + str.tostring(a.count) : "") + (a.mod == M_MS ? (a.dir > 0 ? " ↑" : " ↓") : "")
                 if na(a.lb)
                     a.lb := label.new(lx, ly, txt, xloc = xloc.bar_index, size = size.tiny)
                 label.set_xy(a.lb, lx, ly)
@@ -1019,11 +1030,11 @@ f_detect_eq() =>
 // bullDisp / bearDisp are computed globally; this only draws the leg.
 f_detect_disp() =>
     if bullDisp and not bullDisp[1]
-        f_register(PDArray.new(mod = M_DISP, tag = "DISP+", dir = 1, top = high, bot = low[dispMaxBars - 1],
-             bornOff = dispMaxBars - 1, mitRule = MIT_FRAC, mitFrac = 1.0, mitHandling = MH_REMOVE, maxAge = 80))
+        f_register(PDArray.new(mod = M_DISP, tag = "DISP+", dir = 1, top = high, bot = low[dispLen - 1],
+             bornOff = dispLen - 1, mitRule = MIT_FRAC, mitFrac = 1.0, mitHandling = MH_REMOVE, maxAge = 80))
     if bearDisp and not bearDisp[1]
-        f_register(PDArray.new(mod = M_DISP, tag = "DISP-", dir = -1, top = high[dispMaxBars - 1], bot = low,
-             bornOff = dispMaxBars - 1, mitRule = MIT_FRAC, mitFrac = 1.0, mitHandling = MH_REMOVE, maxAge = 80))
+        f_register(PDArray.new(mod = M_DISP, tag = "DISP-", dir = -1, top = high[dispLen - 1], bot = low,
+             bornOff = dispLen - 1, mitRule = MIT_FRAC, mitFrac = 1.0, mitHandling = MH_REMOVE, maxAge = 80))
 
 // ─── ⑱ Market Structure — BOS / MSS / CHoCH  (E4 · S4.5 / S4.6) ──────
 // By default only the structure of the CURRENT trend stays on the chart: a
@@ -1404,7 +1415,8 @@ if ipShow and barstate.islast
     if reg.size() > 0
         for i = 0 to reg.size() - 1
             e = reg.get(i)
-            if e.status != "mitigated" and e.shown and f_modOn(e.mod)
+            // historical markers (BOS/MSS, SMT: MIT_NONE) and displacement legs are not PD arrays
+            if e.status != "mitigated" and e.shown and f_modOn(e.mod) and e.mitRule != MIT_NONE and e.mod != M_DISP
                 if e.top <= close and (na(nBull) or e.top > nBull)
                     nBull  := e.top
                     nBullT := e.tag
