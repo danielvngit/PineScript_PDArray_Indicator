@@ -158,7 +158,7 @@ ICT/SMC-traders werken met een grote, samenhangende set **PD arrays** (Premium/D
 ### 4.18 Market Structure — BOS / MSS / CHoCH (§ Market Structure) — Epic E4
 - Volgt bevestigde swing highs/lows (pivots) en een interne trend-toestand.
 - **BOS** (Break of Structure): bevestigde close voorbij de laatste beschermde swing **in de richting van de bestaande trend** → continuatie. Label `BOS`.
-- **MSS / CHoCH**: bevestigde close voorbij de laatste beschermde swing **tegen** de bestaande korte-termijn-trend (optioneel `Require Displacement`) → mogelijke reversal. Label `MSS`.
+- **MSS / CHoCH**: bevestigde close voorbij de laatste beschermde swing **tegen** de bestaande korte-termijn-trend (optioneel `Require Displacement`) → mogelijke reversal; draait altijd de trendstatus om (S4.10). Label `MSS` (met displacement, of altijd als `Require Displacement` uit staat) of `CHoCH` (zonder displacement terwijl die vereist is).
 - Elk gebroken swingpunt: horizontale lijn van het swingpunt tot de breek-bar + `×`-markering "liquidity taken" + label.
 - Config: `Structure Basis` = `Close` of `Wick`; v1 werkt op één niveau (swing structure), interne (lower-timeframe) structuur is een latere refinement.
 - **Relevantie** (S4.6): de lijn loopt van het gebroken swingpunt **tot de breek-bar** en stopt daar (nooit door tot het heden); het label staat op de breek-bar. Bij een **MSS** worden alle eerdere BOS/MSS-lijnen opgeruimd: alleen de structuur van de huidige trend blijft staan (tenzij `Show structure history` aan staat, S4.7: dan blijven eerdere BOS/MSS staan, begrensd door `Max shown`). Ouderdom telt vanaf de breek-bar (latere aanrakingen houden een lijn niet in leven); elke breuk is een eigen event (geen merge).

@@ -257,7 +257,8 @@ klSesCol = input.color(color.new(#7e57c2, 0), "Session H/L color", group = "⑰ 
 // Market Structure (M_MS)
 msOn     = input.bool(true, "⑱ Market Structure (BOS/MSS) — enable", group = "⑱ Market Structure")
 msBasis  = input.string("Close", "Structure basis", options = ["Close", "Wick"], group = "⑱ Market Structure", display = DSP)
-msReqDisp= input.bool(true, "MSS requires displacement", group = "⑱ Market Structure")
+msReqDisp= input.bool(true, "MSS requires displacement", group = "⑱ Market Structure",
+     tooltip = "A break against the trend always flips the trend. On: it is labelled MSS only when displacement backs it, otherwise CHoCH. Off: every break against the trend is an MSS.")
 msBosCol = input.color(color.new(#26a69a, 0), "BOS color", group = "⑱ Market Structure", inline = "msc")
 msMssCol = input.color(color.new(#ef5350, 0), "MSS color", group = "⑱ Market Structure", inline = "msc")
 msMax    = input.int(4, "Max shown", minval = 1, maxval = 20, group = "⑱ Market Structure", display = DSP)
@@ -1062,32 +1063,35 @@ f_detect_ms() =>
     trend = na(msState.get(4)) ? 0 : int(msState.get(4))
     upBasis = msBasis == "Close" ? close : high
     dnBasis = msBasis == "Close" ? close : low
+    // A break against the trend ALWAYS flips the trend (so it can never go stale):
+    // with displacement (or when displacement isn't required) it is an MSS, without
+    // displacement it is a CHoCH. A break with the trend is a BOS.
     if not na(pHigh) and upBasis > pHigh
-        isMssU = trend < 0
-        if not isMssU or not msReqDisp or bullDisp
-            tagU = isMssU ? "MSS ×" : "BOS ×"
-            if isMssU and not msHistory
-                f_msPrune()
-            au = PDArray.new(mod = M_MS, tag = tagU, dir = 1, top = pHigh, bot = pHigh, isLevel = true,
-                 bornOff = bar_index - int(msState.get(1)), mitRule = MIT_NONE, mitHandling = MH_KEEP,
-                 maxAge = 450, col = isMssU ? msMssCol : msBosCol, endBar = bar_index)
-            f_register(au)
-            evt.set(1, (isMssU ? "MSS bull @ " : "BOS bull @ ") + str.tostring(pHigh, format.mintick))
-            msState.set(0, na)
-            msState.set(4, 1)
+        isShiftU = trend < 0
+        isMssU   = isShiftU and (not msReqDisp or bullDisp)
+        tagU     = not isShiftU ? "BOS ×" : isMssU ? "MSS ×" : "CHoCH ×"
+        if isShiftU and not msHistory
+            f_msPrune()
+        au = PDArray.new(mod = M_MS, tag = tagU, dir = 1, top = pHigh, bot = pHigh, isLevel = true,
+             bornOff = bar_index - int(msState.get(1)), mitRule = MIT_NONE, mitHandling = MH_KEEP,
+             maxAge = 450, col = isShiftU ? msMssCol : msBosCol, endBar = bar_index)
+        f_register(au)
+        evt.set(1, (not isShiftU ? "BOS bull @ " : isMssU ? "MSS bull @ " : "CHoCH bull @ ") + str.tostring(pHigh, format.mintick))
+        msState.set(0, na)
+        msState.set(4, 1)
     if not na(pLow) and dnBasis < pLow
-        isMssD = trend > 0
-        if not isMssD or not msReqDisp or bearDisp
-            tagD = isMssD ? "MSS ×" : "BOS ×"
-            if isMssD and not msHistory
-                f_msPrune()
-            ad = PDArray.new(mod = M_MS, tag = tagD, dir = -1, top = pLow, bot = pLow, isLevel = true,
-                 bornOff = bar_index - int(msState.get(3)), mitRule = MIT_NONE, mitHandling = MH_KEEP,
-                 maxAge = 450, col = isMssD ? msMssCol : msBosCol, endBar = bar_index)
-            f_register(ad)
-            evt.set(1, (isMssD ? "MSS bear @ " : "BOS bear @ ") + str.tostring(pLow, format.mintick))
-            msState.set(2, na)
-            msState.set(4, -1)
+        isShiftD = trend > 0
+        isMssD   = isShiftD and (not msReqDisp or bearDisp)
+        tagD     = not isShiftD ? "BOS ×" : isMssD ? "MSS ×" : "CHoCH ×"
+        if isShiftD and not msHistory
+            f_msPrune()
+        ad = PDArray.new(mod = M_MS, tag = tagD, dir = -1, top = pLow, bot = pLow, isLevel = true,
+             bornOff = bar_index - int(msState.get(3)), mitRule = MIT_NONE, mitHandling = MH_KEEP,
+             maxAge = 450, col = isShiftD ? msMssCol : msBosCol, endBar = bar_index)
+        f_register(ad)
+        evt.set(1, (not isShiftD ? "BOS bear @ " : isMssD ? "MSS bear @ " : "CHoCH bear @ ") + str.tostring(pLow, format.mintick))
+        msState.set(2, na)
+        msState.set(4, -1)
 
 // ─── ⑫ Dealing Range  (E5 · S5.1 / S5.2) ────────────────────────────
 // Only computes the range into drBox[]; the premium/discount/EQ/OTE/fib
