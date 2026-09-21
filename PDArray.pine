@@ -287,6 +287,7 @@ type PDArray
     bool   alertedTap   = false
     int    flag         = 0          // module-specific state (e.g. breaker phase, "inverted")
     float  aux          = na         // module-specific scratch value
+    int    endBar       = 0          // >0: level line ends at this bar (fixed right end) instead of running to the present
     // drawing handles
     box    bx           = na
     line   ln1          = na
@@ -560,7 +561,8 @@ f_register(PDArray a) =>
     a.strength := 1.0
     a.count    := math.max(1, a.count)
     bool merged = false
-    if reg.size() > 0
+    // every structure break (module ⑱) is its own event — never merge into an older one
+    if reg.size() > 0 and a.mod != M_MS
         tolLvl = atr * 0.15
         for i = 0 to reg.size() - 1
             e = reg.get(i)
@@ -605,7 +607,8 @@ f_lifecycle() =>
                 a.tapBar := bar_index
             else if touched and a.status == "tapped" and not a.alertedTap
                 a.tapBar := bar_index
-            if touched
+            // fixed-end levels age from their end bar; later touches must not keep them alive
+            if touched and a.endBar == 0
                 a.lastBar := bar_index
             if a.status != "mitigated" and a.mitRule != MIT_NONE
                 bool mit = false
@@ -684,7 +687,7 @@ f_render() =>
             tr     = int(math.min(95.0, gTranspBase + agef * 12.0 + (a.status == "mitigated" ? 10.0 : 0.0)))
             trB    = math.max(0, tr - 40)
             trCe   = math.max(0, tr - 30)
-            rightX = a.extend ? bar_index + 10 : bar_index + 2
+            rightX = a.endBar > 0 ? a.endBar : a.extend ? bar_index + 10 : bar_index + 2
             dstyle = a.status == "mitigated" ? line.style_dotted : line.style_solid
             if a.isLevel
                 if na(a.ln1)
@@ -731,7 +734,10 @@ f_render() =>
                 // time instead of stacking on the current bar.
                 lx     = a.isLevel ? rightX : a.bornBar
                 ly     = a.top
-                lstyle = a.isLevel ? label.style_label_left : label.style_none
+                // fixed-end levels (structure breaks): bubble above the line for a
+                // bullish break, below for a bearish one, so it doesn't cover the
+                // candles that follow the break bar.
+                lstyle = a.endBar > 0 ? (a.dir >= 0 ? label.style_label_down : label.style_label_up) : a.isLevel ? label.style_label_left : label.style_none
                 txt    = a.tag + ((a.mod == M_EQ or a.mod == M_LIQ) and a.count > 1 ? " x" + str.tostring(a.count) : "")
                 if na(a.lb)
                     a.lb := label.new(lx, ly, txt, xloc = xloc.bar_index, size = size.tiny)
@@ -1013,7 +1019,18 @@ f_detect_disp() =>
         f_register(PDArray.new(mod = M_DISP, tag = "DISP-", dir = -1, top = high[dispMaxBars - 1], bot = low,
              bornOff = dispMaxBars - 1, mitRule = MIT_FRAC, mitFrac = 1.0, mitHandling = MH_REMOVE, maxAge = 80))
 
-// ─── ⑱ Market Structure — BOS / MSS / CHoCH  (E4 · S4.5) ────────────
+// ─── ⑱ Market Structure — BOS / MSS / CHoCH  (E4 · S4.5 / S4.6) ──────
+// Only the structure of the CURRENT trend stays on the chart: a market-structure
+// shift (MSS) drops every earlier BOS/MSS array. Each line runs from the broken
+// swing to the break bar (endBar), never on to the present.
+f_msPrune() =>
+    if reg.size() > 0
+        for i = reg.size() - 1 to 0
+            e = reg.get(i)
+            if e.mod == M_MS
+                f_delete(e)
+                reg.remove(i)
+
 f_detect_ms() =>
     // refresh protected swings from the newest confirmed pivots
     if not na(ph)
@@ -1031,9 +1048,11 @@ f_detect_ms() =>
         isMssU = trend < 0
         if not isMssU or not msReqDisp or bullDisp
             tagU = isMssU ? "MSS ×" : "BOS ×"
+            if isMssU
+                f_msPrune()
             au = PDArray.new(mod = M_MS, tag = tagU, dir = 1, top = pHigh, bot = pHigh, isLevel = true,
                  bornOff = bar_index - int(msState.get(1)), mitRule = MIT_NONE, mitHandling = MH_KEEP,
-                 maxAge = 450, col = isMssU ? msMssCol : msBosCol)
+                 maxAge = 450, col = isMssU ? msMssCol : msBosCol, endBar = bar_index)
             f_register(au)
             evt.set(1, (isMssU ? "MSS bull @ " : "BOS bull @ ") + str.tostring(pHigh, format.mintick))
             msState.set(0, na)
@@ -1042,9 +1061,11 @@ f_detect_ms() =>
         isMssD = trend > 0
         if not isMssD or not msReqDisp or bearDisp
             tagD = isMssD ? "MSS ×" : "BOS ×"
+            if isMssD
+                f_msPrune()
             ad = PDArray.new(mod = M_MS, tag = tagD, dir = -1, top = pLow, bot = pLow, isLevel = true,
                  bornOff = bar_index - int(msState.get(3)), mitRule = MIT_NONE, mitHandling = MH_KEEP,
-                 maxAge = 450, col = isMssD ? msMssCol : msBosCol)
+                 maxAge = 450, col = isMssD ? msMssCol : msBosCol, endBar = bar_index)
             f_register(ad)
             evt.set(1, (isMssD ? "MSS bear @ " : "BOS bear @ ") + str.tostring(pLow, format.mintick))
             msState.set(2, na)

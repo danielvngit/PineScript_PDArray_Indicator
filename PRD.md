@@ -161,6 +161,7 @@ ICT/SMC-traders werken met een grote, samenhangende set **PD arrays** (Premium/D
 - **MSS / CHoCH**: bevestigde close voorbij de laatste beschermde swing **tegen** de bestaande korte-termijn-trend (optioneel `Require Displacement`) → mogelijke reversal. Label `MSS`.
 - Elk gebroken swingpunt: horizontale lijn van het swingpunt tot de breek-bar + `×`-markering "liquidity taken" + label.
 - Config: `Structure Basis` = `Close` of `Wick`; v1 werkt op één niveau (swing structure), interne (lower-timeframe) structuur is een latere refinement.
+- **Relevantie** (S4.6): de lijn loopt van het gebroken swingpunt **tot de breek-bar** en stopt daar (nooit door tot het heden); het label staat op de breek-bar. Bij een **MSS** worden alle eerdere BOS/MSS-lijnen opgeruimd: alleen de structuur van de huidige trend blijft staan. Ouderdom telt vanaf de breek-bar (latere aanrakingen houden een lijn niet in leven); elke breuk is een eigen event (geen merge).
 
 ### 4.19 Info-paneel (§ Info Panel) — Epic E7
 - Optioneel, positie instelbaar (4 hoeken). Toont:
@@ -237,7 +238,7 @@ ICT/SMC-traders werken met een grote, samenhangende set **PD arrays** (Premium/D
 - **Geen brede confluence-scoring in v1** — alleen BPR (§4.14) als concrete confluence-array. Latere epic E12.
 - **Trendline liquidity** (§4.10 / issue #20) is **uitgesteld tot na v1**: het diagonale-lijn-model past niet op de box/level-representatie van de gedeelde core zonder extra `slope`/`anchor`-velden en aangepaste renderer/lifecycle. De horizontale BSL/SSL-liquidity (§4.10) werkt wel. Issue #20 blijft open met label `later`.
 - **SMT** (§4.15): geen automatische correlatie-detectie; gebruiker geeft symbolen op. Max 2 gecorreleerde symbolen in v1.
-- **Market Structure** (§4.18): v1 werkt op één (swing-)niveau; geen aparte internal/LTF-structuurlaag.
+- **Market Structure** (§4.18): v1 werkt op één (swing-)niveau; geen aparte internal/LTF-structuurlaag. Alleen de structuur van de huidige trend wordt getoond (een MSS ruimt eerdere BOS/MSS op).
 - **Mitigation vs Breaker** (§4.2/§4.3): het onderscheid (wel/geen BOS) hangt af van module 18's structuur-lezing; bij module 18 uit valt de indicator terug op een heuristiek (violated + retest zonder nieuwe swing = mitigation block).
 - **Volume-weging** is altijd secundair (optionele sterkte-/kwaliteitsfactor), nooit detectie-basis; zichtbare fallback zonder volumedata.
 - **Opening gaps / key opens / sessies** worden op de chart-timeframe afgeleid; op zeer hoge timeframes (≥ D1) zijn NDOG/sessie-levels per definitie niet zinvol en worden ze verborgen met een statusmelding.
@@ -295,7 +296,7 @@ Milestones op GitHub = epics; issues = stories. Elke module-issue heeft acceptat
 | **E1 — Scaffold & Shared Core** | Repo, PRD, README, licentie; indicator-skelet; `PDArray` UDT + registry; lifecycle-manager; gedeelde renderer; decluttering + object-budget; input-framework + master switch; alert-dispatcher-stub; info-paneel-stub | S1.1 repo + docs scaffold · S1.2 indicator-skelet + input-framework · S1.3 `PDArray` UDT + registry + `f_register`/dedupe · S1.4 lifecycle-manager (formed/tapped/mitigated/age) · S1.5 gedeelde renderer (box/line/label/CE) · S1.6 decluttering + globaal budget · S1.7 alert-dispatcher + JSON-schema · S1.8 info-paneel-stub |
 | **E2 — Imbalance arrays** | Modules 5, 6, 7, 8, 9, 14 | S2.1 FVG + CE (§4.5) · S2.2 IFVG (§4.6) · S2.3 Liquidity Void (§4.7) · S2.4 Volume Imbalance (§4.8) · S2.5 Opening Gaps NDOG/NWOG (§4.9) · S2.6 BPR (§4.14) |
 | **E3 — Order-flow blocks** | Modules 1, 2, 3, 4 | S3.1 Order Block + propulsion/reclaimed (§4.1) · S3.2 Breaker (§4.2) · S3.3 Mitigation Block (§4.3) · S3.4 Rejection Block (§4.4) |
-| **E4 — Liquidity & Structure** | Modules 10, 11, 16, 18 | S4.1 Buyside/Sellside Liquidity + sweeps (§4.10) · S4.2 Trendline liquidity (§4.10, vereenvoudigd) · S4.3 Equal Highs/Lows (§4.11) · S4.4 Displacement (§4.16) · S4.5 BOS/MSS/CHoCH (§4.18) |
+| **E4 — Liquidity & Structure** | Modules 10, 11, 16, 18 | S4.1 Buyside/Sellside Liquidity + sweeps (§4.10) · S4.2 Trendline liquidity (§4.10, vereenvoudigd) · S4.3 Equal Highs/Lows (§4.11) · S4.4 Displacement (§4.16) · S4.5 BOS/MSS/CHoCH (§4.18) · S4.6 BOS/MSS-relevantie: lijn tot breek-bar + alleen huidige trend (§4.18) |
 | **E5 — Dealing Range & Levels** | Modules 12, 13, 17 | S5.1 Dealing Range + Premium/Discount/EQ (§4.12) · S5.2 OTE + configureerbare fib-levels (§4.12) · S5.3 Reference Levels PDH/PDL/PWH/PWL/PMH/PML (§4.13) · S5.4 Key Levels & Opens + sessies (§4.17) |
 | **E6 — SMT Divergence** | Module 15 | S6.1 SMT met 1 gecorreleerd symbool (§4.15) · S6.2 optioneel 2e symbool + lijn-weergave |
 | **E7 — UX polish & alerts** | Afronden info-paneel, alerts, theming | S7.1 info-paneel volledig (§4.19) · S7.2 alerts per module + debounce (§4.20) · S7.3 compact mode + theme-preset (§4.22) · S7.4 performance-caps + lookback (§4.21) · S7.5 tooltips-review alle inputs |
