@@ -259,6 +259,8 @@ msReqDisp= input.bool(true, "MSS requires displacement", group = "⑱ Market Str
 msBosCol = input.color(color.new(#26a69a, 0), "BOS color", group = "⑱ Market Structure", inline = "msc")
 msMssCol = input.color(color.new(#ef5350, 0), "MSS color", group = "⑱ Market Structure", inline = "msc")
 msMax    = input.int(4, "Max shown", minval = 1, maxval = 20, group = "⑱ Market Structure", display = DSP)
+msHistory= input.bool(false, "Show structure history", group = "⑱ Market Structure",
+     tooltip = "Off = only the structure of the current trend is shown (a market-structure shift, MSS, clears the earlier BOS/MSS lines). On = also keep BOS/MSS from earlier trends; 'Max shown' then caps how many of the most recent breaks are drawn.")
 
 // ═════════════════════════════ TYPES ═════════════════════════════
 type PDArray
@@ -1024,9 +1026,10 @@ f_detect_disp() =>
              bornOff = dispMaxBars - 1, mitRule = MIT_FRAC, mitFrac = 1.0, mitHandling = MH_REMOVE, maxAge = 80))
 
 // ─── ⑱ Market Structure — BOS / MSS / CHoCH  (E4 · S4.5 / S4.6) ──────
-// Only the structure of the CURRENT trend stays on the chart: a market-structure
-// shift (MSS) drops every earlier BOS/MSS array. Each line runs from the broken
-// swing to the break bar (endBar), never on to the present.
+// By default only the structure of the CURRENT trend stays on the chart: a
+// market-structure shift (MSS) drops every earlier BOS/MSS array (unless
+// "Show structure history" is on). Each line runs from the broken swing to the
+// break bar (endBar), never on to the present.
 f_msPrune() =>
     if reg.size() > 0
         for i = reg.size() - 1 to 0
@@ -1052,7 +1055,7 @@ f_detect_ms() =>
         isMssU = trend < 0
         if not isMssU or not msReqDisp or bullDisp
             tagU = isMssU ? "MSS ×" : "BOS ×"
-            if isMssU
+            if isMssU and not msHistory
                 f_msPrune()
             au = PDArray.new(mod = M_MS, tag = tagU, dir = 1, top = pHigh, bot = pHigh, isLevel = true,
                  bornOff = bar_index - int(msState.get(1)), mitRule = MIT_NONE, mitHandling = MH_KEEP,
@@ -1065,7 +1068,7 @@ f_detect_ms() =>
         isMssD = trend > 0
         if not isMssD or not msReqDisp or bearDisp
             tagD = isMssD ? "MSS ×" : "BOS ×"
-            if isMssD
+            if isMssD and not msHistory
                 f_msPrune()
             ad = PDArray.new(mod = M_MS, tag = tagD, dir = -1, top = pLow, bot = pLow, isLevel = true,
                  bornOff = bar_index - int(msState.get(3)), mitRule = MIT_NONE, mitHandling = MH_KEEP,
