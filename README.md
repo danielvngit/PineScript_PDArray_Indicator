@@ -50,7 +50,7 @@ Elke module heeft: `Enable`, eigen bull/bear-kleur, `Max Shown`, `Mitigated Hand
 3. Stel per module `Max shown` en `Mitigated handling` (Fade / Remove / Keep) af.
 4. `Global / Theme`: `Compact Mode` voor een rustiger chart, `Color Theme` (Neutral / Vivid / Mono), `Lookback Bars` voor performance.
 5. Webhook-automatisering: zet `Enable JSON Webhook Alerts` aan en maak een TradingView-alert op **"Any alert() function call"**. Payload-schema: zie [`PRD.md` §4.20](PRD.md).
-6. De inputwaarden staan bewust **niet** in de TradingView-statusregel bovenaan de chart (anders staan er ~70 waarden achter de titel die de chart en het info-paneel afdekken). De waarden blijven te zien en te wijzigen in de Inputs-tab van de indicator. Staat het info-paneel op `Top Right` en botst dat met de statusregel, kies dan `Bottom Right` / `Bottom Left`.
+6. De inputwaarden staan bewust **niet** in de TradingView-statusregel bovenaan de chart (anders staan er ~75 waarden, incl. symbolen en sessietijden, achter de titel die de chart en het info-paneel afdekken). De waarden blijven te zien en te wijzigen in de Inputs-tab van de indicator. Staat het info-paneel op `Top Right` en botst dat met de statusregel, kies dan `Bottom Right` / `Bottom Left`.
 7. Losse alerts (zonder webhook): maak een alert op een van de zeven `alertcondition`-namen (PD Array — formed / tapped / mitigated, Liquidity swept, Market structure shift, SMT divergence, Discount + OTE entry).
 
 ### Standaard-preset

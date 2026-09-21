@@ -190,7 +190,7 @@ ICT/SMC-traders werken met een grote, samenhangende set **PD arrays** (Premium/D
 - **Master switch** bovenaan (`Hide ALL modules (override)` als noodrem, default uit).
 - Eén `group` per module, in vaste volgorde, elk met: `Enable`, `Bull Color`, `Bear Color`, `Max Shown`, `Mitigated Handling`, `Extend Right` (waar van toepassing), plus module-specifieke drempels — allemaal met `tooltip`.
 - Globale groepen: `Global / Theme` (kleuren-preset, compact mode, transparantie-schaal, lookback), `Info Panel`, `Alerts`.
-- **Statusregel**: alle `input.int/float/string` gebruiken `display = DSP` (`display.none`) zodat de ~70 inputwaarden niet als lange regel achter de scripttitel in de TradingView-statusregel verschijnen. Bool/color-inputs tonen daar standaard al niet.
+- **Statusregel**: alle `input.int/float/string/symbol/session` gebruiken `display = DSP` (`display.none`) zodat de ~75 inputwaarden (incl. symbolen en sessietijden) niet als lange regel achter de scripttitel in de TradingView-statusregel verschijnen. Bool/color-inputs tonen daar standaard al niet.
 - Standaard-kleuren: bullish = teal-familie, bearish = rood-familie, neutraal (dealing range / referentielevels) = grijs/blauw — met per-module afwijkingen zodat soorten onderscheidbaar blijven.
 
 ## 5. Niet-functionele requirements

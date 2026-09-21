@@ -40,7 +40,7 @@ int MH_REMOVE = 1
 int MH_KEEP   = 2
 
 // ═════════════════════════════ GLOBAL INPUTS ═════════════════════════════
-// Keeps int/float/string input values out of the chart status line (otherwise ~70 values
+// Keeps int/float/string/symbol/session input values out of the chart status line (otherwise ~75 values
 // pile up next to the title and cover the top of the chart / info panel).
 DSP = display.none
 gHideAll    = input.bool(false, "Hide ALL modules (override)", group = "Global / Theme",
@@ -217,8 +217,8 @@ bprAge   = input.int(500, "Max age (bars)", minval = 20, group = "⑭ Balanced P
 // SMT Divergence (M_SMT)
 smtOn    = input.bool(true, "⑮ SMT Divergence — enable", group = "⑮ SMT Divergence")
 smtSym1  = input.symbol("FX:AUDUSD", "Correlated symbol 1", group = "⑮ SMT Divergence",
-     tooltip = "Positively-correlated instrument to compare swings against (for AUDCAD: FX:AUDUSD, or inverse-correlated FX:USDCAD). Divergence in HH/LL = SMT.")
-smtSym2  = input.symbol("", "Correlated symbol 2 (optional)", group = "⑮ SMT Divergence")
+     tooltip = "Positively-correlated instrument to compare swings against (for AUDCAD: FX:AUDUSD, or inverse-correlated FX:USDCAD). Divergence in HH/LL = SMT.", display = DSP)
+smtSym2  = input.symbol("", "Correlated symbol 2 (optional)", group = "⑮ SMT Divergence", display = DSP)
 smtLine  = input.bool(true, "Draw connector line", group = "⑮ SMT Divergence")
 smtBullCol= input.color(color.new(#26a69a, 0), "Bull SMT color", group = "⑮ SMT Divergence", inline = "smc")
 smtBearCol= input.color(color.new(#ef5350, 0), "Bear SMT color", group = "⑮ SMT Divergence", inline = "smc")
@@ -241,9 +241,9 @@ klAsia   = input.bool(false, "Asia session H/L", group = "⑰ Key Levels & Opens
 klLondon = input.bool(true, "London session H/L", group = "⑰ Key Levels & Opens", inline = "kls")
 klNY     = input.bool(true, "New York session H/L", group = "⑰ Key Levels & Opens", inline = "kls")
 klTz     = input.string("America/New_York", "Timezone", group = "⑰ Key Levels & Opens", display = DSP)
-klAsiaSes = input.session("2000-0000", "Asia window", group = "⑰ Key Levels & Opens")
-klLdnSes  = input.session("0200-0500", "London window", group = "⑰ Key Levels & Opens")
-klNYSes   = input.session("0930-1600", "New York window", group = "⑰ Key Levels & Opens")
+klAsiaSes = input.session("2000-0000", "Asia window", group = "⑰ Key Levels & Opens", display = DSP)
+klLdnSes  = input.session("0200-0500", "London window", group = "⑰ Key Levels & Opens", display = DSP)
+klNYSes   = input.session("0930-1600", "New York window", group = "⑰ Key Levels & Opens", display = DSP)
 klHistory= input.int(1, "Session history (past sessions)", minval = 0, maxval = 5, group = "⑰ Key Levels & Opens", display = DSP)
 klOpenCol= input.color(color.new(#ffffff, 0), "Open lines color", group = "⑰ Key Levels & Opens", inline = "klc")
 klSesCol = input.color(color.new(#7e57c2, 0), "Session H/L color", group = "⑰ Key Levels & Opens", inline = "klc")
