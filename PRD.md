@@ -171,6 +171,7 @@ ICT/SMC-traders werken met een grote, samenhangende set **PD arrays** (Premium/D
   - Laatste liquidity sweep (`BSL @ 0.6841, 3 bars geleden`).
   - Laatste structuur-event (`MSS bull @ 0.6790, 7 bars geleden`).
   - Aantal actieve modules / totaal getekende objecten.
+- Achtergrondkleur en transparantie zijn instelbaar (`Panel background` / `Transparency`, S7.6); standaard donker en dus leesbaar op lichte én donkere charts.
 - Puur informatief; geen invloed op detectie, lifecycle of alerts.
 
 ### 4.20 Alerts (§ Alerts) — Epic E7
@@ -299,7 +300,7 @@ Milestones op GitHub = epics; issues = stories. Elke module-issue heeft acceptat
 | **E4 — Liquidity & Structure** | Modules 10, 11, 16, 18 | S4.1 Buyside/Sellside Liquidity + sweeps (§4.10) · S4.2 Trendline liquidity (§4.10, vereenvoudigd) · S4.3 Equal Highs/Lows (§4.11) · S4.4 Displacement (§4.16) · S4.5 BOS/MSS/CHoCH (§4.18) · S4.6 BOS/MSS-relevantie: lijn tot breek-bar + alleen huidige trend (§4.18) |
 | **E5 — Dealing Range & Levels** | Modules 12, 13, 17 | S5.1 Dealing Range + Premium/Discount/EQ (§4.12) · S5.2 OTE + configureerbare fib-levels (§4.12) · S5.3 Reference Levels PDH/PDL/PWH/PWL/PMH/PML (§4.13) · S5.4 Key Levels & Opens + sessies (§4.17) |
 | **E6 — SMT Divergence** | Module 15 | S6.1 SMT met 1 gecorreleerd symbool (§4.15) · S6.2 optioneel 2e symbool + lijn-weergave |
-| **E7 — UX polish & alerts** | Afronden info-paneel, alerts, theming | S7.1 info-paneel volledig (§4.19) · S7.2 alerts per module + debounce (§4.20) · S7.3 compact mode + theme-preset (§4.22) · S7.4 performance-caps + lookback (§4.21) · S7.5 tooltips-review alle inputs |
+| **E7 — UX polish & alerts** | Afronden info-paneel, alerts, theming | S7.1 info-paneel volledig (§4.19) · S7.2 alerts per module + debounce (§4.20) · S7.3 compact mode + theme-preset (§4.22) · S7.4 performance-caps + lookback (§4.21) · S7.5 tooltips-review alle inputs · S7.6 info-paneel: instelbare achtergrond + transparantie (§4.19) |
 | **E8 — MQL5 port** | 1-op-1 poort | S8.1 skelet + shared core · S8.2–S8.x modules per epic-groep · S8.y compile `0 errors/0 warnings` |
 | **E9 — cTrader port** | 1-op-1 poort | S9.1 skelet + shared core · S9.2–S9.x modules · S9.y `dotnet build` tegen `cAlgo.API` |
 | **E10 — Verificatie & docs** | Review + gebruikersdoc | S10.1 Pine v6 review-checklist · S10.2 README-gebruik per platform · S10.3 TRADINGVIEW_LISTING.md · S10.4 screenshots/voorbeeld-setups |

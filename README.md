@@ -48,7 +48,7 @@ Elke module heeft: `Enable`, eigen bull/bear-kleur, `Max Shown`, `Mitigated Hand
 1. Kopieer de inhoud van `PDArray.pine` in de Pine Editor van TradingView en klik **Add to chart** (overlay op de hoofdgrafiek — geen apart paneel).
 2. Zet ongewenste modules uit via hun `① … ⑱ Enable`-toggle. `Hide ALL modules (override)` bovenaan is een globale noodrem (laat uit staan).
 3. Stel per module `Max shown` en `Mitigated handling` (Fade / Remove / Keep) af.
-4. `Global / Theme`: `Compact Mode` voor een rustiger chart, `Color Theme` (Neutral / Vivid / Mono), `Lookback Bars` voor performance.
+4. `Global / Theme`: `Compact Mode` voor een rustiger chart, `Color Theme` (Neutral / Vivid / Mono), `Lookback Bars` voor performance. `Info Panel`: positie, achtergrondkleur en transparantie zijn instelbaar.
 5. Webhook-automatisering: zet `Enable JSON Webhook Alerts` aan en maak een TradingView-alert op **"Any alert() function call"**. Payload-schema: zie [`PRD.md` §4.20](PRD.md).
 6. De inputwaarden staan bewust **niet** in de TradingView-statusregel bovenaan de chart (anders staan er ~75 waarden, incl. symbolen en sessietijden, achter de titel die de chart en het info-paneel afdekken). De waarden blijven te zien en te wijzigen in de Inputs-tab van de indicator. Staat het info-paneel op `Top Right` en botst dat met de statusregel, kies dan `Bottom Right` / `Bottom Left`.
 7. Losse alerts (zonder webhook): maak een alert op een van de zeven `alertcondition`-namen (PD Array — formed / tapped / mitigated, Liquidity swept, Market structure shift, SMT divergence, Discount + OTE entry).

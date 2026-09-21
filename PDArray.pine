@@ -65,6 +65,10 @@ gPivR       = input.int(5, "Pivot Right Bars", minval = 1, group = "Global / The
 ipShow = input.bool(true, "Show Info Panel", group = "Info Panel")
 ipPos  = input.string("Bottom Right", "Panel Position", options = ["Top Right", "Top Left", "Bottom Right", "Bottom Left"], group = "Info Panel",
      tooltip = "Top Right can collide with TradingView's status line at the top of the chart; Bottom Right / Bottom Left keeps the chart clear.", display = DSP)
+ipBg   = input.color(color.new(#131722, 0), "Panel background", group = "Info Panel", inline = "ipbg",
+     tooltip = "Background color of the info panel. The text is light, so keep this dark (or lower the transparency on a dark chart).")
+ipBgTr = input.int(15, "Transparency", minval = 0, maxval = 100, group = "Info Panel", inline = "ipbg",
+     tooltip = "0 = solid, 100 = fully transparent. Fully transparent makes the light panel text unreadable on a light chart.", display = DSP)
 
 // Alerts
 alJson     = input.bool(false, "Enable JSON Webhook Alerts", group = "Alerts",
@@ -1381,10 +1385,12 @@ if ipShow and barstate.islast
         "Bottom Right" => position.bottom_right
         "Bottom Left"  => position.bottom_left
         => position.top_right
+    panelBg = color.new(ipBg, ipBgTr)
     if na(ip)
-        ip := table.new(pos, 2, 9, border_width = 1, frame_color = color.new(color.gray, 50), frame_width = 1)
+        ip := table.new(pos, 2, 9, bgcolor = panelBg, border_width = 1, frame_color = color.new(color.gray, 50), frame_width = 1)
     else
         table.set_position(ip, pos)
+        table.set_bgcolor(ip, panelBg)
     int modsOn = 0
     for m = 1 to 18
         modsOn += f_modOn(m) ? 1 : 0
@@ -1408,7 +1414,7 @@ if ipShow and barstate.islast
     if not na(drT) and not na(drB) and drT > drB
         pct = (close - drB) / (drT - drB) * 100.0
         drPosTxt := (pct >= 50 ? "Premium " : "Discount ") + str.tostring(pct, "#.#") + "%"
-    table.cell(ip, 0, 0, "PD ARRAY SUITE", text_color = color.white, text_size = size.small, bgcolor = color.new(color.blue, 70))
+    table.cell(ip, 0, 0, "PD ARRAY SUITE", text_color = color.white, text_size = size.small, bgcolor = color.new(color.blue, 35))
     table.cell(ip, 1, 0, str.tostring(reg.size()) + " tracked", text_color = color.silver, text_size = size.small)
     table.cell(ip, 0, 1, "Dealing range", text_color = color.silver, text_size = size.small)
     table.cell(ip, 1, 1, drPosTxt, text_color = color.white, text_size = size.small)
