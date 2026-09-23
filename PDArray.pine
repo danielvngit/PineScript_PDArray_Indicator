@@ -257,8 +257,8 @@ klSesCol = input.color(color.new(#7e57c2, 0), "Session H/L color", group = "⑰ 
 // Market Structure (M_MS)
 msOn     = input.bool(true, "⑱ Market Structure (BOS/MSS) — enable", group = "⑱ Market Structure")
 msBasis  = input.string("Close", "Structure basis", options = ["Close", "Wick"], group = "⑱ Market Structure", display = DSP)
-msReqDisp= input.bool(true, "MSS requires displacement", group = "⑱ Market Structure",
-     tooltip = "A break against the trend always flips the trend. On: it is labelled MSS only when displacement backs it, otherwise CHoCH. Off: every break against the trend is an MSS.")
+msReqDisp= input.bool(false, "MSS requires displacement", group = "⑱ Market Structure",
+     tooltip = "A break against the trend always flips the trend. Off (default): every break against the trend is labelled MSS. On: it is labelled MSS only when displacement backs it, otherwise CHoCH.")
 msBosCol = input.color(color.new(#26a69a, 0), "BOS color", group = "⑱ Market Structure", inline = "msc")
 msMssCol = input.color(color.new(#ef5350, 0), "MSS color", group = "⑱ Market Structure", inline = "msc")
 msMax    = input.int(4, "Max shown", minval = 1, maxval = 20, group = "⑱ Market Structure", display = DSP)
